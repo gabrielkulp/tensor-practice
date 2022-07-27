@@ -1,10 +1,12 @@
+mod containers;
 mod tensor;
+use crate::tensor::{Coords, Tensor, Value};
 
 fn main() {
-    let a = match tensor::read("../T.coo") {
-		Ok(val) => val,
-		Err(e) => panic!("Failed to read tensor: {}", e),
-	};
+    let a: Tensor<std::collections::BTreeMap<Coords, Value>> = match Tensor::read("../T.coo") {
+        Ok(val) => val,
+        Err(e) => panic!("Failed to read tensor: {}", e),
+    };
     let b = a.clone();
 
     println!("{}", a);
@@ -13,6 +15,6 @@ fn main() {
     println!("Trace with 1, 2 is\n{}", a.trace(1, 2));
 
     let c = a.contract(0, &b, 1);
-    println!("contracted with a clone on 0,1 yields\n{}", c);
+    print!("contracted with a clone on 0,1 yields\n{}", c);
     c.write("C.coo").unwrap();
 }

@@ -1,28 +1,35 @@
-use std::collections::HashMap;
+// trait that a tensor's key-value store must implement
+use crate::containers::KeyVal;
 
+// file IO stuff
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
+
+// change tensor precision here
 pub type Value = f32;
 pub type Coords = Vec<u32>;
 
 #[derive(Clone)]
-pub struct Tensor {
+pub struct Tensor<T: KeyVal> {
     shape: Coords,
-    values: HashMap<Coords, Value>,
+    values: T,
 }
 
 #[allow(dead_code)]
-impl Tensor {
+impl<T: KeyVal> Tensor<T> {
     pub fn order(&self) -> usize {
         self.shape.len()
     }
 
-    pub fn zero(shape: &Coords) -> Tensor {
+    pub fn zero(shape: &Coords) -> Tensor<T> {
         Tensor {
             shape: shape.clone(),
-            values: HashMap::new(),
+            values: T::new(),
         }
     }
 
-    pub fn scalar(value: Value) -> Tensor {
+    pub fn scalar(value: Value) -> Tensor<T> {
         let mut t = Tensor::zero(&vec![]);
         t.insert(&vec![], value);
         t
@@ -56,7 +63,7 @@ impl Tensor {
         }
     }
 
-    pub fn trace(&self, idx_a: usize, idx_b: usize) -> Tensor {
+    pub fn trace(&self, idx_a: usize, idx_b: usize) -> Tensor<T> {
         assert!(idx_a < self.order(), "idx_a out of range");
         assert!(idx_b < self.order(), "idx_b out of range");
         assert!(idx_a != idx_b, "trace indices can't match");
@@ -113,7 +120,7 @@ impl Tensor {
         return c;
     }
 
-    pub fn contract(&self, idx_a: usize, other: &Tensor, idx_b: usize) -> Tensor {
+    pub fn contract(&self, idx_a: usize, other: &Tensor<T>, idx_b: usize) -> Tensor<T> {
         let a = self;
         let b = other;
         assert!(idx_a < a.order(), "idx_a out of range");
@@ -186,59 +193,44 @@ impl Tensor {
         }
         c
     }
-}
 
-impl std::fmt::Display for Tensor {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut s = String::new();
-        for (k, v) in self.values.iter() {
-            s = s + &format!("  {:?} = {}\n", k, v);
+    pub fn read(path: &str) -> Result<Tensor<T>, std::io::Error> {
+        let file = File::open(Path::new(path))?;
+        let mut lines = std::io::BufReader::new(file).lines();
+
+        // read order
+        let mut line: String = lines.next().expect("read order")?;
+        let order: usize = line.split(": ").collect::<Vec<&str>>()[1]
+            .trim()
+            .parse::<usize>()
+            .expect("parse order");
+
+        // read shape
+        line = lines.next().expect("read shape")?;
+        let shape_str = line.split(": ").collect::<Vec<&str>>()[1].trim();
+        let mut shape: Coords = vec![];
+        for s in shape_str.split(", ") {
+            shape.push(s.parse().expect("parse shape"));
         }
-        write!(f, "shape is {:?}\ncontents is:\n{}", self.shape, s)
-    }
-}
+        assert!(shape.len() == order, "tensor size metadata mismatch");
 
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
-pub fn read(path: &str) -> Result<Tensor, std::io::Error> {
-    let file = File::open(Path::new(path))?;
-    let mut lines = std::io::BufReader::new(file).lines();
+        // allocate new tensor
+        let mut t = Tensor::zero(&shape);
 
-    // read order
-    let mut line: String = lines.next().unwrap()?;
-    let order: usize = line.split(": ").collect::<Vec<&str>>()[1]
-        .trim()
-        .parse::<usize>()
-        .unwrap();
-
-    // read shape
-    line = lines.next().unwrap()?;
-    let shape_str = line.split(": ").collect::<Vec<&str>>()[1].trim();
-    let mut shape: Coords = vec![];
-    for s in shape_str.split(", ") {
-        shape.push(s.parse().unwrap());
-    }
-    assert!(shape.len() == order, "tensor size metadata mismatch");
-
-    // allocate new tensor
-    let mut t = Tensor::zero(&shape);
-
-    // read values line-by-line
-    _ = lines.next().unwrap()?;
-    let mut coords = shape.clone();
-    for l in lines {
-        let line = l?;
-        let vals = line.split(", ").collect::<Vec<&str>>();
-        for m in 0..order {
-            coords[m] = vals[m].parse().unwrap();
+        // read values line-by-line
+        _ = lines.next().expect("read coordinates and value")?;
+        let mut coords = shape.clone();
+        for l in lines {
+            let line = l?;
+            let vals = line.split(", ").collect::<Vec<&str>>();
+            for m in 0..order {
+                coords[m] = vals[m].parse().expect("parse coordinates");
+            }
+            t.insert(&coords, vals[vals.len() - 1].parse().expect("parse value"));
         }
-        t.insert(&coords, vals[vals.len() - 1].parse().unwrap());
+        Ok(t)
     }
-    Ok(t)
-}
 
-impl Tensor {
     pub fn write(&self, path: &str) -> Result<(), std::io::Error> {
         let mut file = File::create(Path::new(path))?;
         write!(file, "order: {}\n", self.order())?;
@@ -264,5 +256,16 @@ impl Tensor {
             )?;
         }
         Ok(())
+    }
+}
+
+#[allow(dead_code)]
+impl<T: KeyVal> std::fmt::Display for Tensor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "shape is {:?}\ncontents is:", self.shape)?;
+        for (k, v) in self.values.iter() {
+            write!(f, "\n  {:?} = {}", k, v)?;
+        }
+        write!(f, "\n")
     }
 }
