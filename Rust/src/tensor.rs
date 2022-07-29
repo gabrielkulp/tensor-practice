@@ -1,14 +1,13 @@
-// trait that a tensor's key-value store must implement
-use crate::containers::KeyVal;
+#![allow(dead_code)]
+
+// only import trait for storage format
+// to ensure everything is generic
+use crate::containers::{Coords, KeyVal, Value};
 
 // file IO stuff
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-
-// change tensor precision here
-pub type Value = f32;
-pub type Coords = Vec<u32>;
 
 #[derive(Clone)]
 pub struct Tensor<T: KeyVal> {
@@ -16,7 +15,6 @@ pub struct Tensor<T: KeyVal> {
     values: T,
 }
 
-#[allow(dead_code)]
 impl<T: KeyVal> Tensor<T> {
     pub fn order(&self) -> usize {
         self.shape.len()
@@ -120,9 +118,7 @@ impl<T: KeyVal> Tensor<T> {
         return c;
     }
 
-    pub fn contract(&self, idx_a: usize, other: &Tensor<T>, idx_b: usize) -> Tensor<T> {
-        let a = self;
-        let b = other;
+    pub fn contract(a: &Tensor<T>, idx_a: usize, b: &Tensor<T>, idx_b: usize) -> Tensor<T> {
         assert!(idx_a < a.order(), "idx_a out of range");
         assert!(idx_b < b.order(), "idx_b out of range");
 
@@ -259,7 +255,6 @@ impl<T: KeyVal> Tensor<T> {
     }
 }
 
-#[allow(dead_code)]
 impl<T: KeyVal> std::fmt::Display for Tensor<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "shape is {:?}\ncontents is:", self.shape)?;
