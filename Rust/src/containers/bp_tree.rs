@@ -1,22 +1,19 @@
 #![allow(dead_code)]
-use crate::{ContainerIterator, Coords, KeyVal, Value};
+use super::coords_le;
+use super::{ContainerIterator, Coords, KeyVal, Value};
+use std::borrow::Borrow;
 
 const ORDER: usize = 32;
 
 enum Node {
     Internal(Internal),
-    Leaf(Leaf),
+    Leaf(Value),
     Nil,
 }
 
 struct Internal {
     child_count: usize,
-    children: [Box<Node>; ORDER],
-    keys: [u8; ORDER],
-}
-
-struct Leaf {
-    value: Value,
+    children: [Option<(Coords, Box<Node>)>; ORDER],
 }
 
 pub struct BPTree {
@@ -35,6 +32,28 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+impl<'a> Node {
+    fn leaf_search(node: &'a Node, key: &Coords) -> Option<&'a Value> {
+        match node {
+            Node::Nil => None,
+            Node::Leaf(v) => Some(v),
+            Node::Internal(i) => {
+                for n in i.children.iter() {
+                    match n {
+                        None => continue,
+                        Some((c, b)) => {
+                            if coords_le(key, c) {
+                                return Node::leaf_search(b, key);
+                            }
+                        }
+                    }
+                }
+                None
+            }
+        }
+    }
+}
+
 impl<'a> KeyVal for BPTree {
     fn new() -> Self {
         BPTree {
@@ -46,7 +65,10 @@ impl<'a> KeyVal for BPTree {
         todo!("b+ tree insert")
     }
     fn get(&self, key: &Coords) -> Option<&Value> {
-        todo!("b+ tree get")
+        match Node::leaf_search(self.root.borrow(), key) {
+            Some(v) => Some(&(*v)),
+            None => None,
+        }
     }
     fn iter(&self) -> ContainerIterator<'_> {
         ContainerIterator::BPTree(Iter { tree: self })

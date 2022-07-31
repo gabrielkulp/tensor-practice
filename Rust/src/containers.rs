@@ -41,7 +41,7 @@ pub trait KeyVal {
     fn iter(&self) -> ContainerIterator;
 }
 
-fn serialize_coords(coords: Coords) -> Key {
+pub fn serialize_coords(coords: Coords) -> Key {
     assert!(coords.len() <= size_of::<Key>() / size_of::<Mode>());
     let mut out: u64 = 0;
     for c in coords {
@@ -51,7 +51,7 @@ fn serialize_coords(coords: Coords) -> Key {
     out
 }
 
-fn deserialize_coords(order: usize, key: Key) -> Coords {
+pub fn deserialize_coords(order: usize, key: Key) -> Coords {
     let mut tmp = key;
     let mut coords: Coords = Vec::new();
     let mask = !0 as Mode;
@@ -60,4 +60,15 @@ fn deserialize_coords(order: usize, key: Key) -> Coords {
         tmp >>= size_of::<Mode>();
     }
     coords
+}
+
+// if a is <= b
+pub fn coords_le(a: &Coords, b: &Coords) -> bool {
+    assert!(a.len() == b.len());
+    for (i, j) in a.iter().zip(b.iter()) {
+        if i > j {
+            return false;
+        }
+    }
+    return true;
 }

@@ -1,5 +1,4 @@
-use crate::{ContainerIterator, Coords, KeyVal, Value};
-
+use super::{ContainerIterator, Coords, KeyVal, Value};
 use std::collections::HashMap;
 pub type HashTable = HashMap<Coords, Value>;
 
