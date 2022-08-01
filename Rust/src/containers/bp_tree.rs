@@ -63,14 +63,10 @@ impl<'a> Node {
     }
 
     fn leaf_insert(node: &'a mut Box<Node>, key: &Coords, value: Value) -> Option<NodeItem> {
-        match **node {
-            Node::Internal(_) => todo!(), // normal traversal case
-            Node::Leaf(_) => todo!(),     // end recursion
-        }
         /*
         first: recursive search for the right node to add value to.
            takes: value, node to check (if it's last or a step)
-           must stop recursing on leaf or nil
+           must stop recursing on leaf
            replace leaf with new value? Maybe add it.
         */
 
@@ -80,6 +76,58 @@ impl<'a> Node {
              which could cause the parent to split!
            returns entry to add to parent up the call stack
         */
+        match &mut **node {
+            Node::Leaf(leaf) => {
+                // base case
+                if leaf.child_count < ORDER {
+                    // there's room to insert, but it might require shifting existing entries
+                    let mut shift = false;
+                    let mut temp: Option<ValueItem> = None;
+
+                    for ovi in leaf.values.iter_mut() {
+                        if shift {
+                            if let None = ovi {
+                                break;
+                            }
+                            temp = ovi.replace(temp.unwrap());
+                            continue;
+                        }
+                        if let Some((coords, _)) = ovi {
+                            if !coords_le(key, &coords) {
+                                // insert here, and shift other entries
+                                shift = true;
+                                temp = ovi.replace((key.clone(), value));
+                            }
+                            continue;
+                        } else {
+                            // insert it right here
+                            ovi.replace((key.clone(), value));
+                            break;
+                        }
+                    }
+                    None
+                } else {
+                    // already full so make a new leaf node
+                    let mut new_leaf = Leaf {
+                        child_count: ORDER / 2,
+                        values: [INIT_VALUE_ITEM; ORDER],
+                    };
+
+                    // copy half of old entries to new leaf
+                    new_leaf.values[0] = Some((key.clone(), value));
+                    let half = ORDER / 2;
+                    for i in 0..half {
+                        new_leaf.values[i + 1] = leaf.values[half + i].take()
+                    }
+
+                    // return pointer to this new leaf
+                    return Some((key.clone(), Box::new(Node::Leaf(new_leaf))));
+                }
+            }
+            Node::Internal(_) => {
+                todo!()
+            }
+        }
     }
 }
 
