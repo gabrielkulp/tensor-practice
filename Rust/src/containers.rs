@@ -72,3 +72,13 @@ pub fn coords_le(a: &Coords, b: &Coords) -> bool {
     }
     return true;
 }
+
+pub fn coords_eq(a: &Coords, b: &Coords) -> bool {
+    assert!(a.len() == b.len());
+    for (i, j) in a.iter().zip(b.iter()) {
+        if i != j {
+            return false;
+        }
+    }
+    return true;
+}
