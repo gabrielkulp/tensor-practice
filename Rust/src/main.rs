@@ -17,7 +17,16 @@ fn main() {
     print!("contracted with a clone on modes 0, 1 yields\n{}", c);
     c.write("C.coo").expect("export tensor to file");
     */
-    let bpt: BPTree = BPTree::new();
-    let c: Coords = vec![0];
-    assert!(bpt.get(&c) == None)
+    println!(
+        "{}",
+        coords_cmp(&vec![3, 5, 6], |a, b| a < b, &vec![4, 5, 6])
+    );
+    let mut bpt: BPTree = BPTree::new();
+    assert!(bpt.get(&vec![0]) == None);
+    bpt.insert(vec![0], 3.0);
+    bpt.insert(vec![1], 4.0);
+    bpt.insert(vec![2], 8.0);
+    bpt.insert(vec![3], 12.0);
+    bpt.insert(vec![4], 99.0);
+    bpt.insert(vec![5], 99.0);
 }

@@ -33,6 +33,7 @@ impl<T: KeyVal> Tensor<T> {
         t
     }
 
+    #[track_caller]
     pub fn insert(&mut self, coords: &Coords, value: Value) {
         // note that this won't let you set an existing entry to 0
         assert!(coords.len() == self.order());
@@ -44,6 +45,7 @@ impl<T: KeyVal> Tensor<T> {
         }
     }
 
+    #[track_caller]
     pub fn get(&self, coords: &Coords) -> Value {
         for (c, s) in coords.iter().zip(&self.shape) {
             assert!(c < &s);
@@ -51,6 +53,7 @@ impl<T: KeyVal> Tensor<T> {
         self.values.get(coords).unwrap_or(&(0 as Value)).clone()
     }
 
+    #[track_caller]
     pub fn add(&mut self, coords: &Coords, value: Value) {
         assert!(coords.len() == self.order());
         for (c, s) in coords.iter().zip(&self.shape) {
@@ -61,6 +64,7 @@ impl<T: KeyVal> Tensor<T> {
         }
     }
 
+    #[track_caller]
     pub fn trace(&self, idx_a: usize, idx_b: usize) -> Tensor<T> {
         assert!(idx_a < self.order(), "idx_a out of range");
         assert!(idx_b < self.order(), "idx_b out of range");
@@ -118,6 +122,7 @@ impl<T: KeyVal> Tensor<T> {
         return c;
     }
 
+    #[track_caller]
     pub fn contract(a: &Tensor<T>, idx_a: usize, b: &Tensor<T>, idx_b: usize) -> Tensor<T> {
         assert!(idx_a < a.order(), "idx_a out of range");
         assert!(idx_b < b.order(), "idx_b out of range");

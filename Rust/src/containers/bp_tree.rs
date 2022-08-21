@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use super::{coords_eq, coords_le};
+use super::{coords_lt, coords_gt, coords_eq, coords_le};
 use super::{ContainerIterator, Coords, KeyVal, Value};
 use std::borrow::Borrow;
 
-const ORDER: usize = 32;
+const ORDER: usize = 4; //32; // make it small for testing
 type NodeItem = (Coords, Box<Node>);
 type ValueItem = (Coords, Value);
 const INIT_NODE_ITEM: Option<NodeItem> = None;
@@ -53,7 +53,7 @@ impl<'a> Node {
             }
             Node::Internal(i) => {
                 for (c, b) in i.children.iter().flatten() {
-                    if coords_le(key, c) {
+                    if coords_lt(key, c) {
                         return Node::leaf_search(b, key);
                     }
                 }
@@ -77,13 +77,15 @@ impl<'a> Node {
            returns entry to add to parent up the call stack
         */
         match &mut **node {
+            // Base case: we've reached a leaf node
             Node::Leaf(leaf) => {
-                // base case
                 if leaf.child_count < ORDER {
-                    // there's room to insert, but it might require shifting existing entries
+                    leaf.child_count += 1;
+                    // There's room to insert, but it might require shifting existing entries.
+                    // Do one pass through children, inserting the new value at the right spot,
+                    // then shifting over all the remaining children entries to make room.
                     let mut shift = false;
                     let mut temp: Option<ValueItem> = None;
-
                     for ovi in leaf.values.iter_mut() {
                         if shift {
                             if let None = ovi {
@@ -93,7 +95,7 @@ impl<'a> Node {
                             continue;
                         }
                         if let Some((coords, _)) = ovi {
-                            if !coords_le(key, &coords) {
+                            if coords_gt(key, &coords) {
                                 // insert here, and shift other entries
                                 shift = true;
                                 temp = ovi.replace((key.clone(), value));
@@ -105,26 +107,64 @@ impl<'a> Node {
                             break;
                         }
                     }
-                    None
+                    println!("T1");
+                    return None;
                 } else {
-                    // already full so make a new leaf node
+                    // There is no room to add the value to the current leaf node,
+                    // so instead make a new leaf node and divide all the entries between them.
+                    // Then return this new leaf up the call stack to be added to a parent.
+                    let half = ORDER / 2;
                     let mut new_leaf = Leaf {
-                        child_count: ORDER / 2,
+                        child_count: half,
                         values: [INIT_VALUE_ITEM; ORDER],
                     };
 
                     // copy half of old entries to new leaf
                     new_leaf.values[0] = Some((key.clone(), value));
-                    let half = ORDER / 2;
                     for i in 0..half {
                         new_leaf.values[i + 1] = leaf.values[half + i].take()
                     }
+                    leaf.child_count = ORDER - half;
 
                     // return pointer to this new leaf
                     return Some((key.clone(), Box::new(Node::Leaf(new_leaf))));
                 }
             }
-            Node::Internal(_) => {
+
+            // Recursive case: node isn't a leaf
+            Node::Internal(parent) => {
+                // first check which child to insert to
+                
+                let left = 0;
+                let right = parent.child_count-1;
+                let child_idx = 0;
+                while left <= right {
+                    child_idx = (left + right)/2;
+                    if let Some(child) = parent.children[child_idx] {
+                        if coords_lt(&child.0, key) {
+                            left = child_idx + 1;
+                        } else if coords_gt(&child.0, key) {
+                            right = child_idx - 1;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        panic!("node has unexpected 'None' child");
+                    }
+                }
+                
+                // if insertion returned a new node, add it as a child
+                let (node_coords, node_box) = parent.children[child_idx].unwrap();
+                if let Node::
+                if node.child_count < ORDER {
+                    node.child_count += 1;
+                    // There's room to insert, but we'll need to shift entries
+                    let mut shift = false;
+                    let mut temp
+                    
+                } else {
+                    // There is no room, so split to a new node
+                }
                 todo!()
             }
         }
@@ -142,13 +182,30 @@ impl<'a> KeyVal for BPTree {
         }
     }
     fn insert(&mut self, key: Coords, value: Value) -> () {
-        let new_root = Node::leaf_insert(&mut self.root, &key, value);
-        match new_root {
-            None => println!("new root is same as old root"),
-            Some((k, v)) => {
-                println!("new root with k={:?}", k);
-                self.root = v;
-            }
+        let new_node = Node::leaf_insert(&mut self.root, &key, value);
+        if let Some((k, v)) = new_node {
+            println!("new node with k={:?}", k);
+            let mut new_root = Internal {
+                child_count: 0,
+                children: [INIT_NODE_ITEM; ORDER],
+            };
+            // assign a temporary value so we can "move" the root with a swap
+            let mut old_root = Box::new(Node::Leaf(Leaf {
+                child_count: 0,
+                values: [INIT_VALUE_ITEM; ORDER],
+            }));
+            std::mem::swap(&mut old_root, &mut self.root);
+
+            let old_extent = match &*old_root {
+                Node::Leaf(l) => l.values[0].as_ref().unwrap().0.clone(),
+                Node::Internal(i) => i.children[0].as_ref().unwrap().0.clone(),
+            };
+            new_root.children[0] = Some((old_extent, old_root));
+            new_root.children[1] = Some((k.clone(), v));
+            new_root.child_count = 2;
+            self.root = Box::new(Node::Internal(new_root));
+        } else {
+            println!("same root");
         }
     }
     fn get(&self, key: &Coords) -> Option<&Value> {

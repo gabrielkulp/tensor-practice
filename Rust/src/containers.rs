@@ -63,22 +63,31 @@ pub fn deserialize_coords(order: usize, key: Key) -> Coords {
 }
 
 // if a is <= b
-pub fn coords_le(a: &Coords, b: &Coords) -> bool {
+pub fn coords_cmp(a: &Coords, f: impl Fn(Key, Key) -> bool, b: &Coords) -> bool {
     assert!(a.len() == b.len());
+    return f(serialize_coords(a.clone()), serialize_coords(b.clone()));
+    /*// only works for some comparisons
     for (i, j) in a.iter().zip(b.iter()) {
-        if i > j {
+        if !f(i, j) {
             return false;
         }
     }
     return true;
+    */
 }
 
+pub fn coords_lt(a: &Coords, b: &Coords) -> bool {
+    coords_cmp(a, |i, j| i < j, b)
+}
+pub fn coords_gt(a: &Coords, b: &Coords) -> bool {
+    coords_cmp(a, |i, j| i > j, b)
+}
+pub fn coords_le(a: &Coords, b: &Coords) -> bool {
+    coords_cmp(a, |i, j| i <= j, b)
+}
+pub fn coords_ge(a: &Coords, b: &Coords) -> bool {
+    coords_cmp(a, |i, j| i >= j, b)
+}
 pub fn coords_eq(a: &Coords, b: &Coords) -> bool {
-    assert!(a.len() == b.len());
-    for (i, j) in a.iter().zip(b.iter()) {
-        if i != j {
-            return false;
-        }
-    }
-    return true;
+    coords_cmp(a, |i, j| i == j, b)
 }
