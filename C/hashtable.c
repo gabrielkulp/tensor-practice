@@ -1,19 +1,19 @@
-#include <stdlib.h>
-#include <stdbool.h>
 #include "hashtable.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 /*
 typedef struct htEntry {
-	bool valid;
-	htKey_t key;
-	float value;
+  bool valid;
+  htKey_t key;
+  float value;
 } htEntry;
 
 typedef struct Hashtable {
-	bool valid;
-	size_t capacity;
-	size_t count;
-	htEntry * table;
+  size_t capacity;
+  size_t count;
+  htEntry * table;
 } Hashtable;
 */
 
@@ -22,18 +22,13 @@ Hashtable * htNew(size_t capacity) {
 	if (!ht)
 		return 0;
 
-	ht->capacity = capacity;
 	ht->count = 0;
 	ht->table = calloc(capacity, sizeof(htEntry));
-	ht->valid = (ht->table != 0);
+	ht->capacity = ht->table ? capacity : 0;
 	return ht;
 }
 
 void htFree(Hashtable * ht) {
-	if (!ht->valid)
-		return;
-
-	ht->valid = false;
 	free(ht->table);
 	ht->table = 0;
 	ht->capacity = 0;
@@ -43,7 +38,7 @@ void htFree(Hashtable * ht) {
 
 // makes a new entry or modifies existing one
 bool htSet(Hashtable * ht, htKey_t key, float value) {
-	if (!ht->valid)
+	if (!ht->table || !ht->capacity)
 		return false;
 
 	size_t i = key % ht->capacity;
@@ -56,7 +51,7 @@ bool htSet(Hashtable * ht, htKey_t key, float value) {
 		}
 
 		// increment but loop around the end
-		i = (i+1) % ht->capacity;
+		i = (i + 1) % ht->capacity;
 
 		// check if we just circled around the parking lot
 		if (i == init_i)
@@ -81,7 +76,7 @@ float htGet(Hashtable * ht, htKey_t key) {
 			return 0;
 
 		// increment but loop around the end
-		i = (i+1) % ht->capacity;
+		i = (i + 1) % ht->capacity;
 
 		// check if we just circled around the parking lot
 		if (i == init_i)
@@ -100,7 +95,7 @@ void htePrint(htEntry hte) {
 
 void htPrintAll(Hashtable * ht) {
 	printf("Hashtable:\n");
-	if (!ht->valid) {
+	if (!ht->table) {
 		printf("  <invalid>\n");
 		return;
 	}
@@ -110,19 +105,20 @@ void htPrintAll(Hashtable * ht) {
 	}
 }
 
-void htPrintEntries(Hashtable * ht) {
-	printf("Hashtable:\n");
-	if (!ht->valid) {
-		printf("  <invalid>\n");
-		return;
-	}
-	printf("  size: %lu\n", ht->capacity);
-	printf("  count: %lu\n", ht->count);
-	printf("  values:\n");
-	for (size_t i = 0; i < ht->capacity; i++) {
-		if (!ht->table[i].valid)
+void * htIteratorInit(Hashtable * ht) { return calloc(sizeof(size_t), 1); }
+void htIteratorCleanup(void * ctx) { free(ctx); }
+
+htEntry * htIteratorNext(Hashtable * ht, void * ctx) {
+	if (!ht->table)
+		return 0;
+	size_t * i = (size_t *)ctx;
+
+	for (; *i < ht->capacity; (*i)++) {
+		if (!ht->table[*i].valid)
 			continue;
-		printf("    ");
-		htePrint(ht->table[i]);
+		htEntry * ret = &ht->table[*i];
+		(*i)++;
+		return ret;
 	}
+	return 0;
 }

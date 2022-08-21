@@ -1,10 +1,10 @@
-#include <stdlib.h>
+#include "tensorMath.h"
 #include <stdbool.h>
 #include <stdio.h>
-#include "tensorMath.h"
+#include <stdlib.h>
 
-Tensor * tensorTrace(Tensor * T, tMode_t a, tMode_t b) {
-	if (!T || !T->valid) {
+Tensor * tensorTrace(enum storage_type type, Tensor * T, tMode_t a, tMode_t b) {
+	if (!T || !T->values) {
 		printf("Tried to calculate trace of invalid tensor\n");
 		return 0;
 	}
@@ -18,7 +18,7 @@ Tensor * tensorTrace(Tensor * T, tMode_t a, tMode_t b) {
 	}
 
 	// contsruct shape of result tensor
-	tCoord_t * CShape = calloc(T->order-2, sizeof(tCoord_t));
+	tCoord_t * CShape = calloc(T->order - 2, sizeof(tCoord_t));
 	if (!CShape) {
 		printf("failed to allocate\n");
 		free(CShape);
@@ -33,11 +33,12 @@ Tensor * tensorTrace(Tensor * T, tMode_t a, tMode_t b) {
 	}
 
 	// allocate tensors and iteration coordinates
-	Tensor * C = tensorNew(T->order-2, CShape, 8); // todo: calculate init size
+	Tensor * C =
+	    tensorNew(type, T->order - 2, CShape, 8); // todo: calculate init size
 	tCoord_t * CCoords = calloc(C->order, sizeof(tCoord_t));
 	tCoord_t * TCoords = calloc(T->order, sizeof(tCoord_t));
 	free(CShape);
-	if (!TCoords || !CCoords || !C || !C->valid) {
+	if (!TCoords || !CCoords || !C) {
 		printf("failed to allocate\n");
 		tensorFree(C);
 		free(CCoords);
@@ -72,7 +73,7 @@ Tensor * tensorTrace(Tensor * T, tMode_t a, tMode_t b) {
 			CCoords[CMode]++;
 			TCoords[mode]++;
 			if (TCoords[mode] == T->shape[mode]) {
-				if (CMode == C->order-1) {
+				if (CMode == C->order - 1) {
 					done = true;
 					break;
 				}
@@ -91,16 +92,17 @@ Tensor * tensorTrace(Tensor * T, tMode_t a, tMode_t b) {
 	return C;
 }
 
-Tensor * tensorContract(Tensor * A, Tensor * B, tMode_t a, tMode_t b) {
-	if (!A || !A->valid || !B || !B->valid)
+Tensor * tensorContract(enum storage_type type, Tensor * A, Tensor * B,
+                        tMode_t a, tMode_t b) {
+	if (!A || !A->values || !B || !B->values)
 		return 0;
-	if (!A->order || !B->order || a > A->order || b > B->order)
+	if (a > A->order || b > B->order)
 		return 0;
 	if (A->shape[a] != B->shape[b])
 		return 0;
-	
+
 	// construct shape of result tensor
-	tCoord_t * CShape = calloc(A->order+B->order-2, sizeof(tCoord_t));
+	tCoord_t * CShape = calloc(A->order + B->order - 2, sizeof(tCoord_t));
 	tMode_t CMode = 0;
 	for (tMode_t m = 0; m < A->order; m++) {
 		if (m == a)
@@ -116,12 +118,13 @@ Tensor * tensorContract(Tensor * A, Tensor * B, tMode_t a, tMode_t b) {
 	}
 
 	// allocate tensor and iteration coordinates
-	Tensor * C = tensorNew(A->order+B->order-2, CShape, 128); // todo: calculate init size
+	Tensor * C = tensorNew(type, A->order + B->order - 2, CShape,
+	                       128); // todo: calculate init size
 	tCoord_t * ACoords = calloc(A->order, sizeof(tCoord_t));
 	tCoord_t * BCoords = calloc(B->order, sizeof(tCoord_t));
 	tCoord_t * CCoords = calloc(C->order, sizeof(tCoord_t));
 	free(CShape);
-	if (!ACoords || !BCoords || !CCoords || !C || !C->valid) {
+	if (!ACoords || !BCoords || !CCoords || !C || !C->values) {
 		printf("failed to allocate\n");
 		tensorFree(C);
 		free(ACoords);
@@ -160,7 +163,7 @@ Tensor * tensorContract(Tensor * A, Tensor * B, tMode_t a, tMode_t b) {
 			if (mode == a || BMode == b)
 				continue;
 			CCoords[CMode]++;
-			if (CMode < A->order-1) { // increment A part of C coord
+			if (CMode < A->order - 1) { // increment A part of C coord
 				ACoords[mode]++;
 				if (ACoords[mode] == A->shape[mode]) {
 					ACoords[mode] = 0;
@@ -172,7 +175,7 @@ Tensor * tensorContract(Tensor * A, Tensor * B, tMode_t a, tMode_t b) {
 			} else { // increment B part of C coord
 				BCoords[BMode]++;
 				if (BCoords[BMode] == B->shape[BMode]) {
-					if (CMode == C->order-1) {
+					if (CMode == C->order - 1) {
 						done = true;
 						break;
 					}

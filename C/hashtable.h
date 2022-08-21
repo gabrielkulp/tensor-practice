@@ -1,5 +1,5 @@
-#include <stdlib.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 typedef unsigned long long htKey_t;
 
@@ -10,7 +10,6 @@ typedef struct htEntry {
 } htEntry;
 
 typedef struct Hashtable {
-	bool valid;
 	size_t capacity;
 	size_t count;
 	htEntry * table;
@@ -23,4 +22,7 @@ bool htSet(Hashtable * ht, htKey_t key, float value);
 float htGet(Hashtable * ht, htKey_t key);
 
 void htPrintAll(Hashtable * ht);
-void htPrintEntries(Hashtable * ht);
+
+void * htIteratorInit(Hashtable * ht);
+void htIteratorCleanup(void * ctx);
+htEntry * htIteratorNext(Hashtable * ht, void * ctx);
