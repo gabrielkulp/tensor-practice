@@ -1,46 +1,42 @@
 #include "hashtable.h"
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 
-/*
+typedef unsigned long long htKey_t;
 typedef struct htEntry {
-  bool valid;
-  htKey_t key;
-  float value;
+	bool valid;
+	htKey_t key;
+	float value;
 } htEntry;
 
 typedef struct Hashtable {
-  size_t capacity;
-  size_t count;
-  htEntry * table;
+	size_t capacity;
+	size_t count;
+	htEntry * table;
 } Hashtable;
-*/
 
 htKey_t _Coords2Key(Tensor * T, tCoord_t * coords) {
 	htKey_t key = 0;
 	for (tMode_t mode = 0; mode < T->order; mode++) {
-		key += (htKey_t)coords[mode] << (mode * KEYGEN_FIELD_SIZE);
+		key += (htKey_t)coords[mode] << (mode * HT_KEYGEN_FIELD_SIZE);
 	}
 	return key;
 }
 
 void _Key2Coords(Tensor * T, tCoord_t * coords, htKey_t key) {
 	tCoord_t mask = ~0;
-	mask <<= (sizeof(mask) * 8) - KEYGEN_FIELD_SIZE;
-	mask >>= (sizeof(mask) * 8) - KEYGEN_FIELD_SIZE;
+	mask <<= (sizeof(mask) * 8) - HT_KEYGEN_FIELD_SIZE;
+	mask >>= (sizeof(mask) * 8) - HT_KEYGEN_FIELD_SIZE;
 	for (tMode_t mode = 0; mode < T->order; mode++) {
-		coords[mode] = (key >> (mode * KEYGEN_FIELD_SIZE)) & mask;
+		coords[mode] = (key >> (mode * HT_KEYGEN_FIELD_SIZE)) & mask;
 	}
 }
 
-Hashtable * htNew(size_t capacity) {
+void * htNew(size_t capacity) {
 	Hashtable * ht = calloc(1, sizeof(Hashtable));
 	if (!ht)
 		return 0;
 
 	ht->count = 0;
+	capacity *= HT_TENSOR_READ_OVERPROVISION_FACTOR;
 	ht->table = calloc(capacity, sizeof(htEntry));
 	ht->capacity = ht->table ? capacity : 0;
 	return ht;
@@ -130,7 +126,8 @@ void htePrint(htEntry hte) {
 		printf("%llu: %f\n", hte.key, hte.value);
 }
 
-void htPrintAll(Hashtable * ht) {
+void htPrintAll(void * ptr) {
+	Hashtable * ht = ptr;
 	printf("Hashtable:\n");
 	if (!ht->table) {
 		printf("  <invalid>\n");

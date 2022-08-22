@@ -238,7 +238,7 @@ Tensor * tensorRead(enum storageType type, const char * filename) {
 
 	fscanf(fp, "\nvalues:\n");
 
-	size_t capacity = TENSOR_READ_OVERPROVISION_FACTOR * (linecount - 3);
+	size_t capacity = linecount - 3;
 	T = tensorNew(type, order, shape, capacity);
 	if (!T || !T->values) {
 		free(shape);
