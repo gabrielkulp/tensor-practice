@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-Tensor * tensorTrace(enum storage_type type, Tensor * T, tMode_t a, tMode_t b) {
+Tensor * tensorTrace(enum storageType type, Tensor * T, tMode_t a, tMode_t b) {
 	if (!T || !T->values) {
 		printf("Tried to calculate trace of invalid tensor\n");
 		return 0;
@@ -92,7 +92,7 @@ Tensor * tensorTrace(enum storage_type type, Tensor * T, tMode_t a, tMode_t b) {
 	return C;
 }
 
-Tensor * tensorContract(enum storage_type type, Tensor * A, Tensor * B,
+Tensor * tensorContract(enum storageType type, Tensor * A, Tensor * B,
                         tMode_t a, tMode_t b) {
 	if (!A || !A->values || !B || !B->values)
 		return 0;

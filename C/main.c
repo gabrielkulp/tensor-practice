@@ -3,34 +3,34 @@
 
 int main(int argc, char ** argv) {
 	printf("Input tensor:\n");
-	Tensor * A = tensorRead(probing_hashtable, "../T.coo");
-	Tensor * B = tensorRead(probing_hashtable, "../T.coo");
+	Tensor * A = tensorRead(probingHashtable, "../T.coo");
+	Tensor * B = tensorRead(probingHashtable, "../T.coo");
 	if (!A || !B) {
 		printf("Error. Exiting.\n");
 		tensorFree(A);
 		tensorFree(B);
 		return 1;
 	}
-	Tensor * C;
+	Tensor * C = {0};
 	tensorPrint(A);
 
 	printf("\nTrace with 0, 1 is\n");
-	C = tensorTrace(probing_hashtable, A, 0, 1);
+	C = tensorTrace(probingHashtable, A, 0, 1);
 	tensorPrint(C);
 	tensorFree(C);
 
 	printf("\nTrace with 0, 2 is\n");
-	C = tensorTrace(probing_hashtable, A, 0, 2);
+	C = tensorTrace(probingHashtable, A, 0, 2);
 	tensorPrint(C);
 	tensorFree(C);
 
 	printf("\nTrace with 1, 2 is\n");
-	C = tensorTrace(probing_hashtable, A, 1, 2);
+	C = tensorTrace(probingHashtable, A, 1, 2);
 	tensorPrint(C);
 	tensorFree(C);
 
 	printf("\nContraction on 0, 1 is\n");
-	C = tensorContract(probing_hashtable, A, B, 0, 1);
+	C = tensorContract(probingHashtable, A, B, 0, 1);
 	tensorPrint(C);
 	tensorWrite(C, "C.coo");
 

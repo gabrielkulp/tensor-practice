@@ -7,7 +7,7 @@
 
 /*
 enum storage_type {
-  probing_hashtable,
+  probingHashtable,
 };
 
 typedef unsigned short tMode_t;
@@ -20,11 +20,7 @@ typedef struct Tensor {
 } Tensor;
 */
 
-#define KEYGEN_FIELD_SIZE 16 // up to order-4 without conflict
-//#define KEYGEN_FIELD_SIZE 8 // up to order-8, but each mode has max len 256
-#define TENSOR_READ_OVERPROVISION_FACTOR 1.5 // = capacity / nnz on file load
-
-Tensor * tensorNew(enum storage_type type, tMode_t order, tCoord_t * shape,
+Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
                    size_t capacity) {
 	Tensor * T = calloc(1, sizeof(Tensor));
 	if (!T)
@@ -41,7 +37,7 @@ Tensor * tensorNew(enum storage_type type, tMode_t order, tCoord_t * shape,
 		T->shape[mode] = shape[mode];
 
 	switch (type) {
-		case probing_hashtable:
+		case probingHashtable:
 			T->values = htNew(capacity);
 			break;
 	}
@@ -55,31 +51,19 @@ Tensor * tensorNew(enum storage_type type, tMode_t order, tCoord_t * shape,
 }
 
 void tensorFree(Tensor * T) {
-	if (!T || !T->values)
+	if (!T)
 		return;
 
-	htFree(T->values);
+	if (T->values) {
+		switch (T->type) {
+			case probingHashtable:
+				htFree(T);
+		}
+	}
 	T->order = 0;
 	free(T->shape);
 	T->shape = 0;
 	free(T);
-}
-
-htKey_t tensorCoords2Key(Tensor * T, tCoord_t * coords) {
-	htKey_t key = 0;
-	for (tMode_t mode = 0; mode < T->order; mode++) {
-		key += (htKey_t)coords[mode] << (mode * KEYGEN_FIELD_SIZE);
-	}
-	return key;
-}
-
-void tensorKey2Coords(Tensor * T, tCoord_t * coords, htKey_t key) {
-	tCoord_t mask = ~0;
-	mask <<= (sizeof(mask) * 8) - KEYGEN_FIELD_SIZE;
-	mask >>= (sizeof(mask) * 8) - KEYGEN_FIELD_SIZE;
-	for (tMode_t mode = 0; mode < T->order; mode++) {
-		coords[mode] = (key >> (mode * KEYGEN_FIELD_SIZE)) & mask;
-	}
 }
 
 bool tensorBoundsCheck(Tensor * T, tCoord_t * coords) {
@@ -95,15 +79,23 @@ bool tensorBoundsCheck(Tensor * T, tCoord_t * coords) {
 bool tensorSet(Tensor * T, tCoord_t * coords, float value) {
 	if (!tensorBoundsCheck(T, coords))
 		return false;
-	htKey_t key = tensorCoords2Key(T, coords);
-	return htSet(T->values, key, value);
+
+	switch (T->type) {
+		case probingHashtable:
+			return htSet(T, coords, value);
+	}
+	return false;
 }
 
 float tensorGet(Tensor * T, tCoord_t * coords) {
 	if (!tensorBoundsCheck(T, coords))
-		return false;
-	htKey_t key = tensorCoords2Key(T, coords);
-	return htGet(T->values, key);
+		return 0;
+
+	switch (T->type) {
+		case probingHashtable:
+			return htGet(T, coords);
+	}
+	return 0;
 }
 
 bool tensorPrintMetadata(Tensor * T) {
@@ -117,13 +109,15 @@ bool tensorPrintMetadata(Tensor * T) {
 	for (tMode_t mode = 0; mode < T->order; mode++)
 		printf("%i ", T->shape[mode]);
 	printf("\n");
+	/*
 	Hashtable * ht = T->values;
 	printf("  capacity: %lu\n", ht->capacity);
 	printf("  entries: %lu\n", ht->count);
 	float volume = 1;
 	for (tMode_t mode = 0; mode < T->order; mode++)
-		volume *= (float)T->shape[mode];
+	    volume *= (float)T->shape[mode];
 	printf("  density: %f%%\n", 100 * (float)ht->count / volume);
+	*/
 	return true;
 }
 
@@ -140,30 +134,28 @@ void tensorPrint(Tensor * T) {
 		printf("    <invalid>\n");
 		return;
 	}
-
-	tCoord_t * coords = malloc(T->order * sizeof(tCoord_t));
-	if (!coords) {
-		free(coords);
-		printf("failed to allocate\n");
-		return;
-	}
-	htEntry * entry;
-	Hashtable * ht = T->values;
-	void * context = htIteratorInit(ht);
-
 	printf("  values:\n");
-	while ((entry = htIteratorNext(ht, context))) {
-		tensorKey2Coords(T, coords, entry->key);
+
+	tensorIterator iter = {0};
+	switch (T->type) {
+		case probingHashtable:
+			iter = htIterator;
+			break;
+	}
+
+	void * context = iter.init(T);
+	tensorEntry item = iter.next(T, context);
+	while (item.coords != 0) {
 		printf("    [");
 		for (tMode_t mode = 0; mode < T->order; mode++) {
-			printf("%u", coords[mode]);
+			printf("%u", item.coords[mode]);
 			if (mode != T->order - 1)
 				printf(" ");
 		}
-		printf("] = %f\n", entry->value);
+		printf("] = %f\n", item.value);
+		item = iter.next(T, context);
 	}
-	free(coords);
-	htIteratorCleanup(context);
+	iter.cleanup(context);
 }
 
 bool tensorWrite(Tensor * T, const char * filename) {
@@ -184,38 +176,33 @@ bool tensorWrite(Tensor * T, const char * filename) {
 	}
 	fputs("\nvalues:\n", fp);
 
-	tCoord_t * coords = calloc(T->order, sizeof(tCoord_t));
-	if (!coords) {
-		free(coords);
-		fputs("<failed>\n", fp);
+	tensorIterator iter = {0};
+	switch (T->type) {
+		case probingHashtable:
+			iter = htIterator;
+			break;
+	}
+	void * context = iter.init(T);
+	tensorEntry item = iter.next(T, context);
+	if (item.coords == 0) {
 		fclose(fp);
+		printf("failed to allocate\n");
 		return false;
 	}
-	htEntry entry;
-	Hashtable * ht = T->values;
 
-	if (!ht->table) {
-		printf("<invalid>\n");
-		free(coords);
-		fclose(fp);
-		return true;
-	}
-	for (size_t i = 0; i < ht->capacity; i++) {
-		entry = ht->table[i];
-		if (!entry.valid || entry.value == 0)
-			continue;
-		tensorKey2Coords(T, coords, entry.key);
+	while (item.coords != 0) {
 		for (tMode_t mode = 0; mode < T->order; mode++) {
-			fprintf(fp, "%u, ", coords[mode]);
+			fprintf(fp, "%u, ", item.coords[mode]);
 		}
-		fprintf(fp, "%f\n", entry.value);
+		fprintf(fp, "%f\n", item.value);
+		item = iter.next(T, context);
 	}
-	free(coords);
+	iter.cleanup(context);
 	fclose(fp);
 	return true;
 }
 
-Tensor * tensorRead(enum storage_type type, const char * filename) {
+Tensor * tensorRead(enum storageType type, const char * filename) {
 	FILE * fp = fopen(filename, "r");
 	if (!fp) {
 		printf("failed to read file \"%s\"\n", filename);
@@ -254,7 +241,6 @@ Tensor * tensorRead(enum storage_type type, const char * filename) {
 	size_t capacity = TENSOR_READ_OVERPROVISION_FACTOR * (linecount - 3);
 	T = tensorNew(type, order, shape, capacity);
 	if (!T || !T->values) {
-		printf("failed to create empty tensor\n");
 		free(shape);
 		fclose(fp);
 		return 0;

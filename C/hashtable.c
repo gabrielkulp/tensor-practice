@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*
 typedef struct htEntry {
@@ -17,6 +18,23 @@ typedef struct Hashtable {
 } Hashtable;
 */
 
+htKey_t _Coords2Key(Tensor * T, tCoord_t * coords) {
+	htKey_t key = 0;
+	for (tMode_t mode = 0; mode < T->order; mode++) {
+		key += (htKey_t)coords[mode] << (mode * KEYGEN_FIELD_SIZE);
+	}
+	return key;
+}
+
+void _Key2Coords(Tensor * T, tCoord_t * coords, htKey_t key) {
+	tCoord_t mask = ~0;
+	mask <<= (sizeof(mask) * 8) - KEYGEN_FIELD_SIZE;
+	mask >>= (sizeof(mask) * 8) - KEYGEN_FIELD_SIZE;
+	for (tMode_t mode = 0; mode < T->order; mode++) {
+		coords[mode] = (key >> (mode * KEYGEN_FIELD_SIZE)) & mask;
+	}
+}
+
 Hashtable * htNew(size_t capacity) {
 	Hashtable * ht = calloc(1, sizeof(Hashtable));
 	if (!ht)
@@ -28,18 +46,30 @@ Hashtable * htNew(size_t capacity) {
 	return ht;
 }
 
-void htFree(Hashtable * ht) {
+void htFree(Tensor * T) {
+	if (!T || !T->values)
+		return;
+	Hashtable * ht = T->values;
 	free(ht->table);
 	ht->table = 0;
 	ht->capacity = 0;
 	ht->count = 0;
+	T->values = 0;
 	free(ht);
 }
 
 // makes a new entry or modifies existing one
-bool htSet(Hashtable * ht, htKey_t key, float value) {
+bool htSet(Tensor * T, tCoord_t * coords, float value) {
+	if (!T)
+		return false;
+	if (!T->values)
+		return false;
+	if (!coords)
+		return false;
+	Hashtable * ht = T->values;
 	if (!ht->table || !ht->capacity)
 		return false;
+	htKey_t key = _Coords2Key(T, coords);
 
 	size_t i = key % ht->capacity;
 	size_t init_i = i;
@@ -65,7 +95,14 @@ bool htSet(Hashtable * ht, htKey_t key, float value) {
 }
 
 // returns 0 in too many cases. Not sure if that's okay
-float htGet(Hashtable * ht, htKey_t key) {
+float htGet(Tensor * T, tCoord_t * coords) {
+	if (!T || !T->values || !coords)
+		return 0;
+	Hashtable * ht = T->values;
+	if (!ht->table)
+		return 0;
+	htKey_t key = _Coords2Key(T, coords);
+
 	size_t i = key % ht->capacity;
 	if (!ht->table[i].valid)
 		return 0;
@@ -105,20 +142,49 @@ void htPrintAll(Hashtable * ht) {
 	}
 }
 
-void * htIteratorInit(Hashtable * ht) { return calloc(sizeof(size_t), 1); }
-void htIteratorCleanup(void * ctx) { free(ctx); }
+typedef struct htContext {
+	size_t i;
+	tCoord_t * coords;
+} htContext;
 
-htEntry * htIteratorNext(Hashtable * ht, void * ctx) {
-	if (!ht->table)
+void * htIteratorInit(Tensor * T) {
+	htContext * ctx = calloc(sizeof(htContext), 1);
+	if (!ctx)
 		return 0;
-	size_t * i = (size_t *)ctx;
+	ctx->coords = calloc(sizeof(tCoord_t), T->order);
+	if (!ctx->coords) {
+		free(ctx);
+		return 0;
+	}
+	return ctx;
+}
 
-	for (; *i < ht->capacity; (*i)++) {
-		if (!ht->table[*i].valid)
+void htIteratorCleanup(void * context) {
+	htContext * ctx = context;
+	if (ctx)
+		free(ctx->coords);
+	free(ctx);
+}
+
+tensorEntry htIteratorNext(Tensor * T, void * context) {
+	if (!T || !T->values)
+		return (tensorEntry){0};
+	Hashtable * ht = T->values;
+	if (!ht->table)
+		return (tensorEntry){0};
+	htContext * ctx = context;
+
+	for (; ctx->i < ht->capacity; (ctx->i)++) {
+		if (!ht->table[ctx->i].valid)
 			continue;
-		htEntry * ret = &ht->table[*i];
-		(*i)++;
+
+		(ctx->i)++;
+		if (ctx->i >= ht->capacity)
+			break;
+		htEntry * hte = &ht->table[ctx->i];
+		_Key2Coords(T, ctx->coords, hte->key);
+		tensorEntry ret = {.coords = ctx->coords, .value = hte->value};
 		return ret;
 	}
-	return 0;
+	return (tensorEntry){0};
 }
