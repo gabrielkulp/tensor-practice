@@ -178,13 +178,10 @@ tensorEntry htIteratorNext(Tensor * T, void * context) {
 		if (!ht->table[ctx->i].valid)
 			continue;
 
-		(ctx->i)++;
-		if (ctx->i >= ht->capacity)
-			break;
 		htEntry * hte = &ht->table[ctx->i];
+		(ctx->i)++;
 		_Key2Coords(T, ctx->coords, hte->key);
-		tensorEntry ret = {.coords = ctx->coords, .value = hte->value};
-		return ret;
+		return (tensorEntry){.coords = ctx->coords, .value = hte->value};
 	}
 	return (tensorEntry){0};
 }
