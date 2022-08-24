@@ -13,20 +13,22 @@ typedef struct Hashtable {
 	htEntry * table;
 } Hashtable;
 
-htKey_t _Coords2Key(Tensor * T, tCoord_t * coords) {
+static htKey_t _Coords2Key(Tensor * T, tCoord_t * coords) {
 	htKey_t key = 0;
 	for (tMode_t mode = 0; mode < T->order; mode++) {
-		key += (htKey_t)coords[mode] << (mode * HT_KEYGEN_FIELD_SIZE);
+		key += (htKey_t)coords[(T->order - 1) - mode]
+		       << (mode * HT_KEYGEN_FIELD_SIZE);
 	}
 	return key;
 }
 
-void _Key2Coords(Tensor * T, tCoord_t * coords, htKey_t key) {
+static void _Key2Coords(Tensor * T, tCoord_t * coords, htKey_t key) {
 	tCoord_t mask = ~0;
 	mask <<= (sizeof(mask) * 8) - HT_KEYGEN_FIELD_SIZE;
 	mask >>= (sizeof(mask) * 8) - HT_KEYGEN_FIELD_SIZE;
 	for (tMode_t mode = 0; mode < T->order; mode++) {
-		coords[mode] = (key >> (mode * HT_KEYGEN_FIELD_SIZE)) & mask;
+		coords[(T->order - 1) - mode] =
+		    (key >> (mode * HT_KEYGEN_FIELD_SIZE)) & mask;
 	}
 }
 

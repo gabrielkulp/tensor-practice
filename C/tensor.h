@@ -33,6 +33,7 @@ Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
 void tensorFree(Tensor * T);
 bool tensorSet(Tensor * T, tCoord_t * coords, float value);
 float tensorGet(Tensor * T, tCoord_t * coords);
+void coordsPrint(Tensor * T, tCoord_t * coords);
 void tensorPrint(Tensor * T);
 
 bool tensorWrite(Tensor * T, const char * filename);

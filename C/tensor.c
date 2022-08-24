@@ -38,6 +38,7 @@ Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
 	for (tMode_t mode = 0; mode < order; mode++)
 		T->shape[mode] = shape[mode];
 
+	T->type = type;
 	switch (type) {
 		case probingHashtable:
 			T->values = htNew(capacity);
@@ -139,15 +140,25 @@ void tensorPrintRaw(Tensor * T) {
 		htPrintAll(T->values);
 }
 
+void coordsPrint(Tensor * T, tCoord_t * coords) {
+	putchar('[');
+	for (tMode_t mode = 0; mode < T->order; mode++) {
+		printf("%u", coords[mode]);
+		if (mode != T->order - 1)
+			putchar(' ');
+	}
+	putchar(']');
+}
+
 void tensorPrint(Tensor * T) {
 	if (!tensorPrintMetadata(T))
 		return;
 
+	printf("  values:\n");
 	if (!T->values) {
 		printf("    <invalid>\n");
 		return;
 	}
-	printf("  values:\n");
 
 	tensorIterator iter = {0};
 	switch (T->type) {
@@ -162,13 +173,9 @@ void tensorPrint(Tensor * T) {
 	void * context = iter.init(T);
 	tensorEntry item = iter.next(T, context);
 	while (item.coords != 0) {
-		printf("    [");
-		for (tMode_t mode = 0; mode < T->order; mode++) {
-			printf("%u", item.coords[mode]);
-			if (mode != T->order - 1)
-				printf(" ");
-		}
-		printf("] = %f\n", item.value);
+		printf("    ");
+		coordsPrint(T, item.coords);
+		printf(" = %f\n", item.value);
 		item = iter.next(T, context);
 	}
 	iter.cleanup(context);
@@ -204,6 +211,7 @@ bool tensorWrite(Tensor * T, const char * filename) {
 	void * context = iter.init(T);
 	tensorEntry item = iter.next(T, context);
 	if (item.coords == 0) {
+		iter.cleanup(context);
 		fclose(fp);
 		printf("failed to allocate\n");
 		return false;
