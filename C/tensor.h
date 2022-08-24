@@ -4,6 +4,7 @@
 
 enum storageType {
 	probingHashtable,
+	BPlusTree,
 };
 
 typedef unsigned short tMode_t;

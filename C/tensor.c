@@ -1,4 +1,5 @@
 #include "tensor.h"
+#include "bpTree.h"
 #include "hashtable.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,6 +9,7 @@
 /*
 enum storage_type {
   probingHashtable,
+  BPlusTree,
 };
 
 typedef unsigned short tMode_t;
@@ -40,6 +42,9 @@ Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
 		case probingHashtable:
 			T->values = htNew(capacity);
 			break;
+		case BPlusTree:
+			T->values = bptNew(capacity);
+			break;
 	}
 
 	if (!T->values) {
@@ -58,6 +63,10 @@ void tensorFree(Tensor * T) {
 		switch (T->type) {
 			case probingHashtable:
 				htFree(T);
+				break;
+			case BPlusTree:
+				bptFree(T);
+				break;
 		}
 	}
 	T->order = 0;
@@ -83,6 +92,8 @@ bool tensorSet(Tensor * T, tCoord_t * coords, float value) {
 	switch (T->type) {
 		case probingHashtable:
 			return htSet(T, coords, value);
+		case BPlusTree:
+			return bptSet(T, coords, value);
 	}
 	return false;
 }
@@ -94,6 +105,8 @@ float tensorGet(Tensor * T, tCoord_t * coords) {
 	switch (T->type) {
 		case probingHashtable:
 			return htGet(T, coords);
+		case BPlusTree:
+			return bptGet(T, coords);
 	}
 	return 0;
 }
@@ -141,6 +154,9 @@ void tensorPrint(Tensor * T) {
 		case probingHashtable:
 			iter = htIterator;
 			break;
+		case BPlusTree:
+			iter = bptIterator;
+			break;
 	}
 
 	void * context = iter.init(T);
@@ -180,6 +196,9 @@ bool tensorWrite(Tensor * T, const char * filename) {
 	switch (T->type) {
 		case probingHashtable:
 			iter = htIterator;
+			break;
+		case BPlusTree:
+			iter = bptIterator;
 			break;
 	}
 	void * context = iter.init(T);
