@@ -1,4 +1,6 @@
 #include "bpTree.h"
+#include "hashtable.h"
+#include "tensor.h"
 #include "tensorMath.h"
 #include <stdio.h>
 
@@ -14,6 +16,18 @@ int main(int argc, char ** argv) {
 	}
 	Tensor * C = {0};
 	tensorPrint(A);
+	tensorPrint(B);
+	/*
+	    void * context = htIteratorInit(B);
+	    tensorEntry item = htIteratorNext(B, context);
+	    while (item.coords != 0) {
+	        putchar('B');
+	        coordsPrint(B, item.coords);
+	        printf(" = %f, and A[\"] = %f\n", item.value,
+	               tensorGet(A, item.coords));
+	        item = htIteratorNext(B, context);
+	    }
+	    htIteratorCleanup(context);*/
 
 	printf("\nTrace with 0, 1 is\n");
 	C = tensorTrace(probingHashtable, A, 0, 1);
@@ -31,7 +45,7 @@ int main(int argc, char ** argv) {
 	tensorFree(C);
 
 	printf("\nContraction on 0, 1 is\n");
-	C = tensorContract(probingHashtable, A, B, 0, 1);
+	C = tensorContract(BPlusTree, A, B, 0, 1);
 	tensorPrint(C);
 	// tensorWrite(C, "C.coo");
 

@@ -137,18 +137,21 @@ bptNode * _splitInternal(bptNode * node, bptNode * newChild, size_t idx) {
 			newNode->keys[i] = node->keys[i + half];
 			node->children[i + half] = NULL; // mark as empty;
 		}
-		node->keys[half - 1] = 0;
 
 		// then we shift over existing entries in the old node
-		for (size_t i = idx; i < half; i++) {
+		for (size_t i = half - 1; i >= idx; i--) {
 			node->children[i + 1] = node->children[i];
 			node->keys[i + 1] = node->keys[i];
 		}
-		node->keys[idx + 1] = node->keys[idx];
 
 		// and add the new value in the gap that created
 		node->children[idx] = newChild;
-		node->keys[idx] = newChild->keys[0];
+		// node->keys[idx] = node->keys[idx + 1];
+		if (idx)
+			node->keys[idx - 1] = newChild->keys[0];
+		bptNode * afterNew = node->children[idx + 1];
+		node->keys[idx] = afterNew->keys[0];
+		node->keys[half] = 0; // optional. todo: remove and test
 		node->childCount++;
 		return newNode;
 	} else {
@@ -205,9 +208,15 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 
 		// else shift children to add new entry
 		if (node->childCount) {
-			for (size_t i = node->childCount - 1; i >= insertIdx; i--) {
+			for (size_t i = node->childCount - 1; i > insertIdx; i--) {
 				node->values[i + 1] = node->values[i];
 				node->keys[i + 1] = node->keys[i];
+			}
+			// do last iteration separately in case insertIdx=0
+			// so we don't underflow our unsigned iterator
+			if (insertIdx < BPT_ORDER - 1) {
+				node->values[insertIdx + 1] = node->values[insertIdx];
+				node->keys[insertIdx + 1] = node->keys[insertIdx];
 			}
 		}
 		node->values[insertIdx] = value;
@@ -258,12 +267,17 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 		}
 		// now finish up the for loop at i=insertIdx in case it's 0.
 		// Iterator is unsigned so this prevents underflow
-		node->children[insertIdx + 1] = node->children[insertIdx];
-		node->keys[insertIdx + 1] = node->keys[insertIdx];
+		if (insertIdx != BPT_ORDER - 1) {
+			node->children[insertIdx + 1] = node->children[insertIdx];
+			node->keys[insertIdx + 1] = node->keys[insertIdx];
+		}
 
 		// and then actually insert the new child
 		node->children[insertIdx] = newChild;
-		node->keys[insertIdx] = node->keys[insertIdx + 1];
+		if (insertIdx != BPT_ORDER - 1)
+			node->keys[insertIdx] = node->keys[insertIdx + 1];
+		else
+			node->keys[insertIdx] = 0; // optional actually. todo: remove
 		node->childCount++;
 
 		// and patch up the intervals (keys)
@@ -283,8 +297,9 @@ bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 	if (!T || !T->values || !coords)
 		return false;
 
-	printf("\npress enter to insert %f at ", value);
+	printf("\nInsert %f at ", value);
 	coordsPrint(T, coords);
+	putchar('\n');
 	while ('\n' != getchar())
 		;
 
@@ -375,7 +390,7 @@ void _print(Tensor * T, bptNode * node, uint depth) {
 
 void bptPrintAll(Tensor * T) {
 	bptNode * root = T->values;
-	printf("raw B+ Tree contents:\n");
+	printf("raw B+ Tree (%p, %p) contents:\n", T, T->values);
 	if (!root) {
 		printf("\tThere's no root!\n");
 		return;
@@ -391,7 +406,7 @@ typedef struct bptContext {
 } bptContext;
 
 void * bptIteratorInit(Tensor * T) {
-	bptPrintAll(T->values);
+	bptPrintAll(T);
 	if (!T || !T->values)
 		return NULL;
 	bptContext * ctx = calloc(sizeof(bptContext), 1);

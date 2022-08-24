@@ -151,6 +151,7 @@ void coordsPrint(Tensor * T, tCoord_t * coords) {
 }
 
 void tensorPrint(Tensor * T) {
+	printf("printing tensor at %p with values %p\n", T, T->values);
 	if (!tensorPrintMetadata(T))
 		return;
 
@@ -268,6 +269,7 @@ Tensor * tensorRead(enum storageType type, const char * filename) {
 	size_t capacity = linecount - 3;
 	T = tensorNew(type, order, shape, capacity);
 	if (!T || !T->values) {
+		printf("something is wrong\n");
 		free(shape);
 		fclose(fp);
 		return 0;
