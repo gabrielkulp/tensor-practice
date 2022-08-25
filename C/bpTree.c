@@ -76,6 +76,7 @@ bptNode * _splitLeaf(bptNode * node, tKey_t key, float value, size_t idx) {
 	node->childCount = half;
 	// behavior depends on if insertion point is in old or new node
 	if (idx < half) {
+		printf("_splitLeaf idx < half\n");
 		// insertion point in old node
 		// so first we can copy over to the new node cleanly
 		for (size_t i = 0; i < half; i++) {
@@ -95,6 +96,7 @@ bptNode * _splitLeaf(bptNode * node, tKey_t key, float value, size_t idx) {
 		node->childCount++;
 		return newNode;
 	} else {
+		printf("_splitLeaf idx >= half\n");
 		// insertion point in new node (idx >= half)
 
 		// so first we do a shifting copy into the new node
@@ -130,6 +132,7 @@ bptNode * _splitInternal(bptNode * node, bptNode * newChild, size_t idx) {
 	node->childCount = half;
 	// behavior depends on if insertion point is in old or new node
 	if (idx < half) {
+		printf("_splitInternal idx < half\n");
 		// insertion point in old node
 		// so first we can copy over to the new node cleanly
 		for (size_t i = 0; i < half; i++) {
@@ -146,15 +149,11 @@ bptNode * _splitInternal(bptNode * node, bptNode * newChild, size_t idx) {
 
 		// and add the new value in the gap that created
 		node->children[idx] = newChild;
-		// node->keys[idx] = node->keys[idx + 1];
-		if (idx)
-			node->keys[idx - 1] = newChild->keys[0];
-		bptNode * afterNew = node->children[idx + 1];
-		node->keys[idx] = afterNew->keys[0];
-		node->keys[half] = 0; // optional. todo: remove and test
+		node->keys[idx] = newChild->keys[0];
 		node->childCount++;
 		return newNode;
 	} else {
+		printf("_splitInternal idx >= half\n");
 		// insertion point in new node (idx >= half)
 
 		// so first we do a shifting copy into the new node
@@ -170,8 +169,7 @@ bptNode * _splitInternal(bptNode * node, bptNode * newChild, size_t idx) {
 		}
 		// and then add the new entry in the gap
 		newNode->children[idx - half] = newChild;
-		if (idx - half)
-			newNode->keys[idx - half - 1] = newChild->keys[0];
+		newNode->keys[idx - half] = newChild->keys[0];
 
 		// finally cleanly invalidate copied entries in the old node
 		for (size_t i = half; i < BPT_ORDER; i++)
@@ -189,6 +187,7 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 	if (!node)
 		return NULL;
 	if (node->isLeaf) {
+		printf("_insert isLeaf\n");
 		// todo: binary search
 		size_t insertIdx = node->childCount;
 		for (size_t i = 0; i < node->childCount; i++) {
@@ -224,15 +223,22 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 		node->childCount++;
 		return NULL;
 	} else { // internal node
+		printf("_insert !isLeaf\n");
 		// todo: binary search
 		size_t insertIdx;
 		for (insertIdx = 0; insertIdx < node->childCount - 1; insertIdx++)
-			if (key <= node->keys[insertIdx])
+			if (key <= node->keys[insertIdx + 1])
 				break;
 		printf("%p internal index is %lu\n", node, insertIdx);
 		bptNode * newChild = _insert(T, node->children[insertIdx], key, value);
+		/*		if (!newChild && !insertIdx)
+		            node->keys[insertIdx] =
+		                ((bptNode *)node->children[insertIdx])->keys[0];
+		*/
+		printf("T1 %p\n", newChild);
 		if (!newChild)
 			return NULL;
+		printf("T2\n");
 
 		tKey_t newInterval = newChild->keys[0];
 		printf("new interval is ");
@@ -252,7 +258,7 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 			printf("  insertion index now at %lu\n", insertIdx);
 		}
 
-		// too many children so we need to split and tell our parent
+		// if too many children then we need to split and tell our parent
 		if (node->childCount == BPT_ORDER)
 			return _splitInternal(node, newChild, insertIdx);
 
@@ -274,19 +280,18 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 
 		// and then actually insert the new child
 		node->children[insertIdx] = newChild;
-		if (insertIdx != BPT_ORDER - 1)
-			node->keys[insertIdx] = node->keys[insertIdx + 1];
-		else
-			node->keys[insertIdx] = 0; // optional actually. todo: remove
+		node->keys[insertIdx] = newChild->keys[0];
 		node->childCount++;
 
+		printf("new child is %p, and ->keys[0] is ", newChild);
+		_printKey(T, newChild->keys[0]);
 		// and patch up the intervals (keys)
-		if (insertIdx)
-			node->keys[insertIdx - 1] = swap ? newInterval : oldInterval;
-		if (swap && insertIdx < node->childCount - 1) {
-			bptNode * afterInsert = node->children[insertIdx + 1];
-			node->keys[insertIdx] = afterInsert->keys[0];
-		}
+		// if (insertIdx)
+		// node->keys[insertIdx - 1] = newInterval;
+		/*if (swap && insertIdx < node->childCount - 1) {
+		    bptNode * afterInsert = node->children[insertIdx + 1];
+		    node->keys[insertIdx+1] = afterInsert->keys[0];
+		}*/
 
 		return NULL; // no new siblings for parent to be aware of
 	}
@@ -296,12 +301,13 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 	if (!T || !T->values || !coords)
 		return false;
-
-	/*printf("\nInsert %f at ", value);
-	coordsPrint(T, coords);
-	putchar('\n');
-	while ('\n' != getchar());*/
-
+	/*
+	    printf("\nInsert %f at ", value);
+	    coordsPrint(T, coords);
+	    putchar('\n');
+	    while ('\n' != getchar())
+	        ;
+	*/
 	bptNode * root = T->values;
 	tKey_t key = _Coords2Key(T, coords);
 	bptNode * rootSibling = _insert(T, root, key, value);
@@ -314,7 +320,8 @@ bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 		newRoot->childCount = 2;
 		newRoot->children[0] = root;
 		newRoot->children[1] = rootSibling;
-		newRoot->keys[0] = rootSibling->keys[0];
+		newRoot->keys[0] = root->keys[0];
+		newRoot->keys[1] = rootSibling->keys[0];
 		T->values = newRoot;
 	}
 	// bptPrintAll(T);
@@ -331,26 +338,26 @@ float _search(Tensor * T, bptNode * node, tKey_t key) {
 			if (node->keys[i] == key)
 				return node->values[i];
 			if (node->keys[i] > key) {
-				printf("Overstepped: ");
+				/*printf("Overstepped: ");
 				_printKey(T, key);
-				putchar('\n');
+				putchar(' ');*/
 				break;
 			}
 		}
-		printf("Not found: ");
+		/*printf("Not found: ");
 		_printKey(T, key);
-		putchar('\n');
+		putchar('\n');*/
 		return 0;
 	} else { // node is internal
 		// todo: make this a binary search
-		for (size_t i = 0; i < node->childCount - 1; i++) {
+		for (size_t i = 1; i < node->childCount; i++) {
 			if (key < node->keys[i]) {
-				printf("recursing into %lu\n", i);
-				return _search(T, node->children[i], key);
+				// printf("recursing into %lu\n", i - 1);
+				return _search(T, node->children[i - 1], key);
 			}
 		}
-		printf("recursing into %lu (last)\n", node->childCount - 1);
-		// if it's not in the other children, it might be in the last one
+		// printf("recursing into %lu (last)\n", node->childCount - 1);
+		//  if it's not in the other children, it might be in the last one
 		return _search(T, node->children[node->childCount - 1], key);
 	}
 }
@@ -389,14 +396,8 @@ void _print(Tensor * T, bptNode * node, uint depth) {
 				putchar('\t');
 			if (i >= node->childCount)
 				printf("\x1b[90m");
-			printf("> child with extent ");
-			if (i == node->childCount - 1) {
-				printf("[max] \x1b[90m");
-				_printKey(T, node->keys[i]);
-				printf("\x1b[0m");
-			} else {
-				_printKey(T, node->keys[i]);
-			}
+			printf("> child with minimum ");
+			_printKey(T, node->keys[i]);
 			putchar('\n');
 			_print(T, node->children[i], depth + 1);
 			printf("\x1b[0m");
@@ -422,7 +423,7 @@ typedef struct bptContext {
 } bptContext;
 
 void * bptIteratorInit(Tensor * T) {
-	bptPrintAll(T);
+	// bptPrintAll(T);
 	if (!T || !T->values)
 		return NULL;
 	bptContext * ctx = calloc(sizeof(bptContext), 1);
