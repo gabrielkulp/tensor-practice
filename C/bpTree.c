@@ -297,11 +297,10 @@ bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 	if (!T || !T->values || !coords)
 		return false;
 
-	printf("\nInsert %f at ", value);
+	/*printf("\nInsert %f at ", value);
 	coordsPrint(T, coords);
 	putchar('\n');
-	while ('\n' != getchar())
-		;
+	while ('\n' != getchar());*/
 
 	bptNode * root = T->values;
 	tKey_t key = _Coords2Key(T, coords);
@@ -318,11 +317,12 @@ bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 		newRoot->keys[0] = rootSibling->keys[0];
 		T->values = newRoot;
 	}
-	bptPrintAll(T);
+	// bptPrintAll(T);
 	return true; // insertion success
 };
 
-float _search(bptNode * node, tKey_t key) {
+// todo: remove tensor argument since it's only for passing to debug print
+float _search(Tensor * T, bptNode * node, tKey_t key) {
 	if (!node)
 		return 0;
 	if (node->isLeaf) {
@@ -330,18 +330,28 @@ float _search(bptNode * node, tKey_t key) {
 		for (size_t i = 0; i < node->childCount; i++) {
 			if (node->keys[i] == key)
 				return node->values[i];
-			if (node->keys[i] > key)
+			if (node->keys[i] > key) {
+				printf("Overstepped: ");
+				_printKey(T, key);
+				putchar('\n');
 				break;
+			}
 		}
+		printf("Not found: ");
+		_printKey(T, key);
+		putchar('\n');
 		return 0;
 	} else { // node is internal
 		// todo: make this a binary search
 		for (size_t i = 0; i < node->childCount - 1; i++) {
-			if (key <= node->keys[i])
-				return _search(node->children[i], key);
+			if (key < node->keys[i]) {
+				printf("recursing into %lu\n", i);
+				return _search(T, node->children[i], key);
+			}
 		}
+		printf("recursing into %lu (last)\n", node->childCount - 1);
 		// if it's not in the other children, it might be in the last one
-		return _search(node->children[node->childCount - 1], key);
+		return _search(T, node->children[node->childCount - 1], key);
 	}
 }
 float bptGet(Tensor * T, tCoord_t * coords) {
@@ -350,7 +360,7 @@ float bptGet(Tensor * T, tCoord_t * coords) {
 
 	bptNode * root = T->values;
 	tKey_t key = _Coords2Key(T, coords);
-	return _search(root, key);
+	return _search(T, root, key);
 };
 
 void _print(Tensor * T, bptNode * node, uint depth) {
@@ -368,7 +378,7 @@ void _print(Tensor * T, bptNode * node, uint depth) {
 			for (uint i = 0; i < depth; i++)
 				putchar('\t');
 			if (i >= node->childCount)
-				printf("\x1b[30m");
+				printf("\x1b[90m");
 			_printKey(T, node->keys[i]);
 			printf(": %f\n", node->values[i]);
 			printf("\x1b[0m");
@@ -378,9 +388,15 @@ void _print(Tensor * T, bptNode * node, uint depth) {
 			for (uint i = 0; i < depth; i++)
 				putchar('\t');
 			if (i >= node->childCount)
-				printf("\x1b[30m");
+				printf("\x1b[90m");
 			printf("> child with extent ");
-			_printKey(T, node->keys[i]);
+			if (i == node->childCount - 1) {
+				printf("[max] \x1b[90m");
+				_printKey(T, node->keys[i]);
+				printf("\x1b[0m");
+			} else {
+				_printKey(T, node->keys[i]);
+			}
 			putchar('\n');
 			_print(T, node->children[i], depth + 1);
 			printf("\x1b[0m");
@@ -390,7 +406,7 @@ void _print(Tensor * T, bptNode * node, uint depth) {
 
 void bptPrintAll(Tensor * T) {
 	bptNode * root = T->values;
-	printf("raw B+ Tree (%p, %p) contents:\n", T, T->values);
+	printf("raw B+ Tree (%p->%p) contents:\n", T, T->values);
 	if (!root) {
 		printf("\tThere's no root!\n");
 		return;
