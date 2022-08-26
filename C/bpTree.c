@@ -416,10 +416,14 @@ void bptPrintAll(Tensor * T) {
 	putchar('\n');
 }
 
+typedef struct bptIterRecord {
+	size_t childIdx;
+	struct bptIterRecord * parent; // this linked list is a stack
+	struct bptNode * node;         // don't traverse B+ tree
+} bptIterRecord;
 typedef struct bptContext {
-	size_t child_idx;
-	struct bptContext * parent; // previous link
-	struct bptContext * tail;   // jump to end of list
+	bptIterRecord * stack;
+	tCoord_t * coords;
 } bptContext;
 
 void * bptIteratorInit(Tensor * T) {
@@ -427,8 +431,34 @@ void * bptIteratorInit(Tensor * T) {
 	if (!T || !T->values)
 		return NULL;
 	bptContext * ctx = calloc(sizeof(bptContext), 1);
-	if (ctx)
-		ctx->tail = ctx;
+	if (!ctx)
+		return NULL;
+	ctx->coords = calloc(sizeof(tCoord_t), T->order);
+	if (!ctx->coords) {
+		free(ctx);
+		return NULL;
+	}
+	ctx->stack = calloc(sizeof(bptIterRecord), 1);
+	if (!ctx->stack) {
+		free(ctx->coords);
+		free(ctx);
+		return NULL;
+	}
+
+	ctx->stack->node = T->values;
+	// traverse to the first leaf node
+	bptIterRecord * top = ctx->stack;
+	while (!top->node->isLeaf) {
+		bptIterRecord * newTop = calloc(sizeof(bptIterRecord), 1);
+		if (!newTop) {
+			bptIteratorCleanup(ctx);
+			return NULL;
+		}
+		newTop->node = top->node->children[0];
+		newTop->parent = top;
+		top = newTop;
+	}
+	ctx->stack = top;
 	return ctx;
 }
 
@@ -438,16 +468,57 @@ void bptIteratorCleanup(void * context) {
 		return;
 
 	// free the whole context stack from the tail in
-	bptContext * entry = ctx->tail;
-	while (ctx->parent) {
-		entry = ctx->parent;
-		free(ctx);
-		ctx = entry;
+	bptIterRecord * top = ctx->stack;
+	while (top->parent) {
+		ctx->stack = top->parent;
+		free(top);
+		top = ctx->stack;
 	}
+	free(ctx->stack);
+	free(ctx->coords);
 	free(ctx);
 }
 
 tensorEntry bptIteratorNext(Tensor * T, void * context) {
-	// todo
-	return (tensorEntry){0};
+	bptContext * ctx = context;
+	bptIterRecord * top = ctx->stack;
+	// have we run out of values in this node yet?
+	if (top->childIdx < top->node->childCount) {
+		// more values here, so just increment and return
+
+		// once we hit a leaf, return it
+		_Key2Coords(T, ctx->coords, top->node->keys[top->childIdx]);
+		float val = top->node->values[top->childIdx];
+		top->childIdx++;
+		return (tensorEntry){.coords = ctx->coords, .value = val};
+	}
+
+	// pop and free as needed until we can increment childIdx
+	while (top->childIdx == top->node->childCount - (!top->node->isLeaf)) {
+		// are we done iterating?
+		if (!top->parent)
+			return (tensorEntry){0};
+
+		top = top->parent;
+		free(ctx->stack);
+		ctx->stack = top;
+	}
+
+	// increment childIdx
+	top->childIdx++;
+
+	// traverse to the next leaf
+	while (!top->node->isLeaf) {
+		bptIterRecord * newTop = calloc(sizeof(bptIterRecord), 1);
+		newTop->node = top->node->children[top->childIdx];
+		newTop->parent = top;
+		top = newTop;
+	}
+	ctx->stack = top;
+
+	// first entry of new leaf, and point to next entry
+	_Key2Coords(T, ctx->coords, top->node->keys[top->childIdx]);
+	float val = top->node->values[top->childIdx];
+	top->childIdx++;
+	return (tensorEntry){.coords = ctx->coords, .value = val};
 }

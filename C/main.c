@@ -47,7 +47,7 @@ int main(int argc, char ** argv) {
 	printf("\nContraction on 0, 1 is\n");
 	C = tensorContract(probingHashtable, A, B, 0, 1);
 	tensorPrint(C);
-	// tensorWrite(C, "C.coo");
+	tensorWrite(C, "C.coo");
 
 	tensorFree(A);
 	tensorFree(B);
