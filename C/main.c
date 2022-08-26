@@ -16,19 +16,22 @@ int main(int argc, char ** argv) {
 	}
 	Tensor * C = {0};
 	tensorPrint(A);
+	putchar('\n');
 	tensorPrint(B);
-	/*
-	    void * context = htIteratorInit(B);
-	    tensorEntry item = htIteratorNext(B, context);
-	    while (item.coords != 0) {
-	        putchar('B');
-	        coordsPrint(B, item.coords);
-	        printf(" = %f, and A[\"] = %f\n", item.value,
-	               tensorGet(A, item.coords));
-	        item = htIteratorNext(B, context);
-	    }
-	    htIteratorCleanup(context);
-	*/
+	putchar('\n');
+
+	tensorIterator iter = htIterator;
+	void * context = iter.init(B);
+	tensorEntry item = iter.next(B, context);
+	while (item.coords != 0) {
+		putchar('B');
+		coordsPrint(B, item.coords);
+		printf(" = %f, and A[\"] = %f\n", item.value,
+		       tensorGet(A, item.coords));
+		item = iter.next(B, context);
+	}
+	iter.cleanup(context);
+
 	printf("\nTrace with 0, 1 is\n");
 	C = tensorTrace(BPlusTree, A, 0, 1);
 	tensorPrint(C);
