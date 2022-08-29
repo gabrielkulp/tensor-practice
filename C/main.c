@@ -6,8 +6,8 @@
 
 int main(int argc, char ** argv) {
 	printf("Input tensor:\n");
-	Tensor * A = tensorRead(BPlusTree, "../T.coo");
-	Tensor * B = tensorRead(probingHashtable, "../T.coo");
+	Tensor * A = tensorRead(probingHashtable, "../B.coo");
+	Tensor * B = tensorRead(BPlusTree, "../B.coo");
 	if (!A || !B) {
 		printf("Error. Exiting.\n");
 		tensorFree(A);
@@ -15,45 +15,51 @@ int main(int argc, char ** argv) {
 		return 1;
 	}
 	Tensor * C = {0};
+	/*
 	tensorPrint(A);
 	putchar('\n');
 	tensorPrint(B);
 	putchar('\n');
+	*/
 
 	tensorIterator iter = htIterator;
-	void * context = iter.init(B);
-	tensorEntry item = iter.next(B, context);
+	void * context = iter.init(A);
+	tensorEntry item = iter.next(A, context);
+	float val1, val2;
 	while (item.coords != 0) {
-		putchar('B');
-		coordsPrint(B, item.coords);
-		printf(" = %f, and A[\"] = %f\n", item.value,
-		       tensorGet(A, item.coords));
-		item = iter.next(B, context);
+		val1 = item.value;
+		val2 = tensorGet(B, item.coords);
+		if (val1 != val2) {
+			putchar('A');
+			coordsPrint(A, item.coords);
+			printf(" = %f, and B[\"] = %f\n", val1, val2);
+		}
+		item = iter.next(A, context);
 	}
 	iter.cleanup(context);
+	/*
+	    printf("\nTrace with 0, 1 is\n");
+	    C = tensorTrace(BPlusTree, A, 0, 1);
+	    tensorPrint(C);
+	    tensorFree(C);
 
-	printf("\nTrace with 0, 1 is\n");
-	C = tensorTrace(BPlusTree, A, 0, 1);
-	tensorPrint(C);
-	tensorFree(C);
+	    printf("\nTrace with 0, 2 is\n");
+	    C = tensorTrace(BPlusTree, A, 0, 2);
+	    tensorPrint(C);
+	    tensorFree(C);
 
-	printf("\nTrace with 0, 2 is\n");
-	C = tensorTrace(BPlusTree, A, 0, 2);
-	tensorPrint(C);
-	tensorFree(C);
+	    printf("\nTrace with 1, 2 is\n");
+	    C = tensorTrace(BPlusTree, A, 1, 2);
+	    tensorPrint(C);
+	    tensorFree(C);
 
-	printf("\nTrace with 1, 2 is\n");
-	C = tensorTrace(BPlusTree, A, 1, 2);
-	tensorPrint(C);
-	tensorFree(C);
-
-	printf("\nContraction on 0, 1 is\n");
-	C = tensorContract(probingHashtable, A, B, 0, 1);
-	tensorPrint(C);
-	tensorWrite(C, "C.coo");
-
+	    printf("\nContraction on 0, 1 is\n");
+	    C = tensorContract(BPlusTree, A, B, 0, 1);
+	    tensorPrint(C);
+	    tensorWrite(C, "C.coo");
+	*/
 	tensorFree(A);
 	tensorFree(B);
-	tensorFree(C);
+	//	tensorFree(C);
 	return 0;
 }

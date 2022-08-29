@@ -151,6 +151,7 @@ void coordsPrint(Tensor * T, tCoord_t * coords) {
 }
 
 void tensorPrint(Tensor * T) {
+	printf("printing tensor at %p with values %p\n", T, T->values);
 	if (!tensorPrintMetadata(T))
 		return;
 
