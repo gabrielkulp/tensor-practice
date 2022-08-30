@@ -5,22 +5,21 @@
 #include <stdio.h>
 
 int main(int argc, char ** argv) {
-	printf("Input tensor:\n");
+	printf("Input tensor A:\n");
 	Tensor * A = tensorRead(probingHashtable, "../B.coo");
+	// tensorPrint(A);
+	printf("\nInput tensor B:\n");
 	Tensor * B = tensorRead(BPlusTree, "../B.coo");
+	// tensorPrint(B);
+	putchar('\n');
+
 	if (!A || !B) {
 		printf("Error. Exiting.\n");
 		tensorFree(A);
 		tensorFree(B);
 		return 1;
 	}
-	Tensor * C = {0};
-	/*
-	tensorPrint(A);
-	putchar('\n');
-	tensorPrint(B);
-	putchar('\n');
-	*/
+	// Tensor * C = {0};
 
 	tensorIterator iter = htIterator;
 	void * context = iter.init(A);
