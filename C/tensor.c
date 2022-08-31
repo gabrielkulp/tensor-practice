@@ -2,6 +2,7 @@
 #include "bpTree.h"
 #include "hashtable.h"
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,12 +19,13 @@ typedef unsigned int tCoord_t;
 typedef struct Tensor {
   tMode_t order;
   tCoord_t * shape; // always non-null
+  enum storageType type;
+  unsigned long long entryCount;
   void * values; // null means whole structure invalid
 } Tensor;
 */
 
-Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
-                   size_t capacity) {
+Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape) {
 	Tensor * T = calloc(1, sizeof(Tensor));
 	if (!T)
 		return 0;
@@ -41,10 +43,10 @@ Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
 	T->type = type;
 	switch (type) {
 		case probingHashtable:
-			T->values = htNew(capacity);
+			T->values = htNew();
 			break;
 		case BPlusTree:
-			T->values = bptNew(capacity);
+			T->values = bptNew();
 			break;
 	}
 
@@ -135,7 +137,12 @@ bool tensorPrintMetadata(Tensor * T) {
 	printf("  shape: ");
 	for (tMode_t mode = 0; mode < T->order; mode++)
 		printf("%i ", T->shape[mode]);
-	printf("\n");
+	printf("\n  entries: %lu\n", T->entryCount);
+	size_t actualSize = tensorSize(T);
+	printf("  size: %lu B\n", actualSize);
+	size_t theoreticalSize = (sizeof(float)+8) * T->entryCount;
+	printf("  size overhead: %.2fx\n",
+	    (float)actualSize/theoreticalSize);
 	/*
 	Hashtable * ht = T->values;
 	printf("  capacity: %lu\n", ht->capacity);
@@ -192,6 +199,16 @@ void tensorPrint(Tensor * T) {
 		item = iter.next(T, context);
 	}
 	iter.cleanup(context);
+}
+
+size_t tensorSize(Tensor * T) {
+	switch (T->type) {
+		case probingHashtable:
+			return htSize(T);
+		case BPlusTree:
+			return bptSize(T);
+	}
+	return 0;
 }
 
 bool tensorWrite(Tensor * T, const char * filename) {
@@ -278,8 +295,10 @@ Tensor * tensorRead(enum storageType type, const char * filename) {
 
 	fscanf(fp, "\nvalues:\n");
 
-	size_t capacity = linecount - 3;
-	T = tensorNew(type, order, shape, capacity);
+	if (type == probingHashtable)
+		ht_capacity = linecount - 3;
+
+	T = tensorNew(type, order, shape);
 	if (!T || !T->values) {
 		printf("something is wrong\n");
 		free(shape);

@@ -16,6 +16,7 @@ typedef struct bptNode {
 	};
 	tKey_t keys[BPT_ORDER]; // if isLeaf
 } bptNode;
+const size_t _bptNodeSize = 2+(BPT_ORDER*(sizeof(tKey_t)+sizeof(float)));
 
 static tKey_t _Coords2Key(Tensor * T, tCoord_t * coords) {
 	tKey_t key = 0;
@@ -43,7 +44,7 @@ static void _printKey(Tensor * T, tKey_t key) {
 	free(coords);
 }
 
-void * bptNew(size_t capacity) {
+void * bptNew() {
 	bptNode * root = calloc(sizeof(bptNode), 1);
 	root->isLeaf = true;
 	statsGlobal.mem++;
@@ -221,9 +222,11 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 			}
 		}
 
+		T->entryCount++;
 		statsGlobal.cmp++; // count check
-		if (node->childCount == BPT_ORDER)
+		if (node->childCount == BPT_ORDER) {
 			return _splitLeaf(node, key, value, insertIdx);
+		}
 
 		// else shift children to add new entry
 		if (node->childCount) {
@@ -441,6 +444,25 @@ typedef struct bptContext {
 	bptIterRecord * stack;
 	tCoord_t * coords;
 } bptContext;
+
+
+static size_t _bptNodeCount(bptNode * node) {
+	if (node->isLeaf)
+		return 1;
+
+	size_t sum = 1; // count yourself
+
+	// plus all the children
+	for (int i = 0; i < node->childCount; i++)
+		sum += _bptNodeCount(node->children[i]);
+	return sum;
+}
+
+size_t bptSize(Tensor * T) {
+	bptNode * root = T->values;
+	return _bptNodeSize * _bptNodeCount(root);
+}
+
 
 void * bptIteratorInit(Tensor * T) {
 	// bptPrintAll(T);

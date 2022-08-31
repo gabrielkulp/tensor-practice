@@ -1,5 +1,6 @@
 #include "tensorMath.h"
 #include "stats.h"
+#include "tensor.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +36,7 @@ Tensor * tensorTrace(enum storageType type, Tensor * T, tMode_t a, tMode_t b) {
 
 	// allocate tensors and iteration coordinates
 	Tensor * C =
-	    tensorNew(type, T->order - 2, CShape, 90); // todo: calculate init size
+	    tensorNew(type, T->order - 2, CShape);
 	tCoord_t * CCoords = calloc(C->order, sizeof(tCoord_t));
 	tCoord_t * TCoords = calloc(T->order, sizeof(tCoord_t));
 	free(CShape);
@@ -127,8 +128,7 @@ Tensor * tensorContract(enum storageType type, Tensor * A, Tensor * B,
 	}
 
 	// allocate tensor and iteration coordinates
-	Tensor * C = tensorNew(type, A->order + B->order - 2, CShape,
-	                       40000); // todo: calculate init size
+	Tensor * C = tensorNew(type, A->order + B->order - 2, CShape);
 	tCoord_t * ACoords = calloc(A->order, sizeof(tCoord_t));
 	tCoord_t * BCoords = calloc(B->order, sizeof(tCoord_t));
 	tCoord_t * CCoords = calloc(C->order, sizeof(tCoord_t));
@@ -198,6 +198,8 @@ Tensor * tensorContract(enum storageType type, Tensor * A, Tensor * B,
 					BCoords[BMode] = 0;
 					CCoords[CMode] = 0;
 					CMode++;
+					//coordsPrint(C, CCoords);
+					//putchar('\n');
 					continue;
 				}
 				break;

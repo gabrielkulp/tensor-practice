@@ -8,13 +8,13 @@
 int main(int argc, char ** argv) {
 	statsReset();
 	printf("Input tensor A:\n");
-	Tensor * A = tensorRead(probingHashtable, "../B.coo");
+	Tensor * A = tensorRead(BPlusTree, "../B.coo");
 	tensorPrintMetadata(A);
 	statsPrint(statsGet());
 
 	statsReset();
 	printf("\nInput tensor B:\n");
-	Tensor * B = tensorRead(BPlusTree, "../B.coo");
+	Tensor * B = tensorRead(probingHashtable, "../B.coo");
 	tensorPrintMetadata(B);
 	statsPrint(statsGet());
 
@@ -26,37 +26,39 @@ int main(int argc, char ** argv) {
 	}
 	Tensor * C = {0};
 
-	putchar('\n');
-	for (int i = 0; i < 80; i++)
-		putchar('-');
-	putchar('\n');
-
 	tensorIterator iter = htIterator;
-	void * context = iter.init(A);
-	tensorEntry item = iter.next(A, context);
+	void * context = iter.init(B);
+	tensorEntry item = iter.next(B, context);
 	float val1, val2;
 	while (item.coords != 0) {
 		val1 = item.value;
-		val2 = tensorGet(B, item.coords);
+		val2 = tensorGet(A, item.coords);
 		if (val1 != val2) {
-			putchar('A');
-			coordsPrint(A, item.coords);
-			printf(" = %f, and B[\"] = %f\n", val1, val2);
+			putchar('B');
+			coordsPrint(B, item.coords);
+			printf(" = %f, and A[\"] = %f\n", val1, val2);
 		}
-		item = iter.next(A, context);
+		item = iter.next(B, context);
 	}
 	iter.cleanup(context);
 	
-	printf("\nTrace A with 0, 1 is\n");
+	putchar('\n');
+	for (int i = 0; i < 80; i++)
+		putchar('-');
+	putchar('\n');
+
+	/*
+	printf("\nTrace A with 0, 1 yields\n");
 	statsReset();
-	C = tensorTrace(probingHashtable, A, 0, 1);
+	C = tensorTrace(BPlusTree, A, 0, 1);
 	tensorPrintMetadata(C);
 	statsPrint(statsGet());
+	ht_capacity = C->entryCount;
 	tensorFree(C);
 
-	printf("\nTrace B with 0, 1 is\n");
+	printf("\nTrace B with 0, 1 yields\n");
 	statsReset();
-	C = tensorTrace(BPlusTree, B, 0, 1);
+	C = tensorTrace(probingHashtable, B, 0, 1);
 	tensorPrintMetadata(C);
 	statsPrint(statsGet());
 	tensorFree(C);
@@ -65,25 +67,47 @@ int main(int argc, char ** argv) {
 	for (int i = 0; i < 80; i++)
 		putchar('-');
 	putchar('\n');
+	*/
 
-	printf("\nContraction on 0, 1 is\n");
+	printf("\nContraction on 0, 1 yields\n");
 	statsReset();
-	C = tensorContract(probingHashtable, A, B, 0, 1);
+	C = tensorContract(BPlusTree, A, A, 0, 1);
 	tensorPrintMetadata(C);
-	statsPrint(statsGet());
+	Stats bptStats = statsGet();
+	size_t bptSize = tensorSize(C);
+	statsPrint(bptStats);
+	tensorWrite(C, "ht.coo");
+	ht_capacity = C->entryCount;
 	tensorFree(C);
 
-	printf("\nContraction on 0, 1 is\n");
+	printf("\nContraction on 0, 1 yields\n");
 	statsReset();
-	C = tensorContract(BPlusTree, A, B, 0, 1);
+	C = tensorContract(probingHashtable, B, B, 0, 1);
 	tensorPrintMetadata(C);
-	statsPrint(statsGet());
+	Stats htStats = statsGet();
+	size_t htSize = tensorSize(C);
+	statsPrint(htStats);
+	tensorWrite(C, "bpt.coo");
 	tensorFree(C);
 
-	//tensorWrite(C, "C.coo");
-	
+	putchar('\n');
+	for (int i = 0; i < 80; i++)
+		putchar('-');
+	putchar('\n');
+
+	puts("Configuration summary:");
+	printf("  B+ tree branching factor: %i\n", BPT_ORDER);
+	printf("  Hash table overprovision factor: %0.2f\n",
+	    HT_TENSOR_READ_OVERPROVISION_FACTOR);
+	printf("  Input tensor size: %lu nnz\n", A->entryCount);
+	printf("  Output tensor size: %lu nnz\n\n", ht_capacity);
+
+	puts("B+ Tree performance compared to hash table:");
+	printf("  RAM transactions: %0.2f%%\n", (float)100*bptStats.mem/htStats.mem);
+	printf("  ALU operations:   %0.2f%%\n", (float)100*(bptStats.add+bptStats.cmp+bptStats.mul)/(htStats.add+htStats.cmp+htStats.mul));
+	printf("  Data structure:   %0.2f%%\n", (float)100*bptSize/htSize);
+
 	tensorFree(A);
 	tensorFree(B);
-	// tensorFree(C);
 	return 0;
 }

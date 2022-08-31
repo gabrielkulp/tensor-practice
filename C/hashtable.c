@@ -1,5 +1,8 @@
 #include "hashtable.h"
 #include "stats.h"
+#include <stddef.h>
+
+size_t ht_capacity;
 
 typedef unsigned long long htKey_t;
 typedef struct htEntry {
@@ -7,10 +10,10 @@ typedef struct htEntry {
 	htKey_t key;
 	float value;
 } htEntry;
+const size_t _hteSize = sizeof(float)+sizeof(htKey_t);
 
 typedef struct Hashtable {
 	size_t capacity;
-	size_t count;
 	htEntry * table;
 } Hashtable;
 
@@ -33,13 +36,12 @@ static void _Key2Coords(Tensor * T, tCoord_t * coords, htKey_t key) {
 	}
 }
 
-void * htNew(size_t capacity) {
+void * htNew() {
 	Hashtable * ht = calloc(1, sizeof(Hashtable));
 	if (!ht)
 		return 0;
 
-	ht->count = 0;
-	capacity *= HT_TENSOR_READ_OVERPROVISION_FACTOR;
+	size_t capacity = ht_capacity * HT_TENSOR_READ_OVERPROVISION_FACTOR;
 	ht->table = calloc(capacity, sizeof(htEntry));
 	ht->capacity = ht->table ? capacity : 0;
 	return ht;
@@ -52,7 +54,6 @@ void htFree(Tensor * T) {
 	free(ht->table);
 	ht->table = 0;
 	ht->capacity = 0;
-	ht->count = 0;
 	T->values = 0;
 	free(ht);
 }
@@ -80,7 +81,7 @@ bool htSet(Tensor * T, tCoord_t * coords, float value) {
 
 		// check if overwriting
 		if (ht->table[i].key == key) {
-			ht->count--; // cancel impending increment
+			T->entryCount--;
 			break;
 		}
 
@@ -97,7 +98,7 @@ bool htSet(Tensor * T, tCoord_t * coords, float value) {
 	ht->table[i].valid = true;
 	ht->table[i].key = key;
 	ht->table[i].value = value;
-	ht->count++;
+	T->entryCount++;
 	statsGlobal.mem++; // store new value
 	return true;
 }
@@ -158,6 +159,11 @@ void htPrintAll(void * ptr) {
 		printf("  [%lu] ", i);
 		htePrint(ht->table[i]);
 	}
+}
+
+size_t htSize(Tensor * T) {
+	Hashtable * ht = T->values;
+	return _hteSize * ht->capacity;
 }
 
 typedef struct htContext {

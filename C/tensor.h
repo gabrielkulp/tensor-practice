@@ -19,6 +19,7 @@ typedef struct Tensor {
 	tMode_t order;
 	tCoord_t * shape;
 	enum storageType type;
+	size_t entryCount;
 	void * values;
 } Tensor;
 
@@ -28,14 +29,16 @@ typedef struct tensorIterator {
 	void (*cleanup)(void *);
 } tensorIterator;
 
-Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape,
-                   size_t capacity);
+// remember to set ht_capacity for probing hashtable
+Tensor * tensorNew(enum storageType type, tMode_t order, tCoord_t * shape);
 void tensorFree(Tensor * T);
 bool tensorSet(Tensor * T, tCoord_t * coords, float value);
 float tensorGet(Tensor * T, tCoord_t * coords);
 void coordsPrint(Tensor * T, tCoord_t * coords);
 bool tensorPrintMetadata(Tensor * T);
 void tensorPrint(Tensor * T);
+size_t tensorSize(Tensor * T);
 
+// tensorRead automatically sets ht_capacity based on file length
 bool tensorWrite(Tensor * T, const char * filename);
 Tensor * tensorRead(enum storageType type, const char * filename);
