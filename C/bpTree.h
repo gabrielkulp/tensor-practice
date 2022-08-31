@@ -2,8 +2,8 @@
 #include "tensor.h"
 
 // must be even number
-#define BPT_ORDER 4 // small number for testing
-//#define BPT_ORDER 32
+//#define BPT_ORDER 4 // small number for testing
+#define BPT_ORDER 32
 #define BPT_KEYGEN_FIELD_SIZE 16 // up to order-4 without conflict
 //#define BPT_KEYGEN_FIELD_SIZE 8 // up to order-8, but modes have max len 256
 

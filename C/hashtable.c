@@ -1,4 +1,5 @@
 #include "hashtable.h"
+#include "stats.h"
 
 typedef unsigned long long htKey_t;
 typedef struct htEntry {
@@ -69,9 +70,14 @@ bool htSet(Tensor * T, tCoord_t * coords, float value) {
 		return false;
 	htKey_t key = _Coords2Key(T, coords);
 
+	statsGlobal.mul++; // counting hash as MUL
 	size_t i = key % ht->capacity;
 	size_t init_i = i;
+	statsGlobal.mem++;
 	while (ht->table[i].valid) {
+		if (i != init_i) // don't double-count the first access
+			statsGlobal.mem++;
+
 		// check if overwriting
 		if (ht->table[i].key == key) {
 			ht->count--; // cancel impending increment
@@ -79,9 +85,12 @@ bool htSet(Tensor * T, tCoord_t * coords, float value) {
 		}
 
 		// increment but loop around the end
+		statsGlobal.add++;
+		statsGlobal.cmp++;
 		i = (i + 1) % ht->capacity;
 
 		// check if we just circled around the parking lot
+		statsGlobal.cmp++;
 		if (i == init_i)
 			return false;
 	}
@@ -89,6 +98,7 @@ bool htSet(Tensor * T, tCoord_t * coords, float value) {
 	ht->table[i].key = key;
 	ht->table[i].value = value;
 	ht->count++;
+	statsGlobal.mem++; // store new value
 	return true;
 }
 
@@ -101,19 +111,28 @@ float htGet(Tensor * T, tCoord_t * coords) {
 		return 0;
 	htKey_t key = _Coords2Key(T, coords);
 
+	statsGlobal.mul++; // counting hash as mul
 	size_t i = key % ht->capacity;
+	statsGlobal.mem++;
 	if (!ht->table[i].valid)
 		return 0;
 
 	size_t init_i = i;
+	statsGlobal.cmp++;
 	while (ht->table[i].key != key) {
+		if (i != init_i) // don't double-count the first access
+			statsGlobal.mem++;
+
 		if (!ht->table[i].valid)
 			return 0;
 
 		// increment but loop around the end
+		statsGlobal.add++;
+		statsGlobal.cmp++;
 		i = (i + 1) % ht->capacity;
 
 		// check if we just circled around the parking lot
+		statsGlobal.cmp++;
 		if (i == init_i)
 			return 0;
 	}
@@ -173,11 +192,16 @@ tensorEntry htIteratorNext(Tensor * T, void * context) {
 		return (tensorEntry){0};
 	htContext * ctx = context;
 
+	statsGlobal.cmp++;
 	for (; ctx->i < ht->capacity; (ctx->i)++) {
-		if (!ht->table[ctx->i].valid)
+		statsGlobal.mem++;
+		if (!ht->table[ctx->i].valid) {
+			statsGlobal.cmp++; // loop condition
 			continue;
+		}
 
 		htEntry * hte = &ht->table[ctx->i];
+		statsGlobal.add++;
 		(ctx->i)++;
 		_Key2Coords(T, ctx->coords, hte->key);
 		return (tensorEntry){.coords = ctx->coords, .value = hte->value};

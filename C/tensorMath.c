@@ -1,4 +1,5 @@
 #include "tensorMath.h"
+#include "stats.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ Tensor * tensorTrace(enum storageType type, Tensor * T, tMode_t a, tMode_t b) {
 
 	// allocate tensors and iteration coordinates
 	Tensor * C =
-	    tensorNew(type, T->order - 2, CShape, 8); // todo: calculate init size
+	    tensorNew(type, T->order - 2, CShape, 90); // todo: calculate init size
 	tCoord_t * CCoords = calloc(C->order, sizeof(tCoord_t));
 	tCoord_t * TCoords = calloc(T->order, sizeof(tCoord_t));
 	free(CShape);
@@ -54,18 +55,26 @@ Tensor * tensorTrace(enum storageType type, Tensor * T, tMode_t a, tMode_t b) {
 		for (tCoord_t k = 0; k < T->shape[a]; k++) {
 			TCoords[a] = k;
 			TCoords[b] = k;
-			accumulator += tensorGet(T, TCoords);
+			float val = tensorGet(T, TCoords);
+			if (val) {
+				statsGlobal.add++;
+				accumulator += val;
+			}
 		}
-		bool success = tensorSet(C, CCoords, accumulator);
-		if (!success) {
-			printf("failed to insert value\n");
-			tensorFree(C);
-			free(CCoords);
-			free(TCoords);
-			return 0;
+		if (accumulator) {
+			bool success = tensorSet(C, CCoords, accumulator);
+			if (!success) {
+				printf("failed to insert value\n");
+				tensorFree(C);
+				free(CCoords);
+				free(TCoords);
+				return 0;
+			}
 		}
 
 		// get next coordinates or finish
+		statsGlobal.add++;
+		statsGlobal.cmp++;
 		CMode = 0;
 		for (tMode_t mode = 0; CMode < C->order; mode++) {
 			if (mode == a || mode == b)
@@ -119,7 +128,7 @@ Tensor * tensorContract(enum storageType type, Tensor * A, Tensor * B,
 
 	// allocate tensor and iteration coordinates
 	Tensor * C = tensorNew(type, A->order + B->order - 2, CShape,
-	                       128); // todo: calculate init size
+	                       40000); // todo: calculate init size
 	tCoord_t * ACoords = calloc(A->order, sizeof(tCoord_t));
 	tCoord_t * BCoords = calloc(B->order, sizeof(tCoord_t));
 	tCoord_t * CCoords = calloc(C->order, sizeof(tCoord_t));
@@ -141,7 +150,12 @@ Tensor * tensorContract(enum storageType type, Tensor * A, Tensor * B,
 		for (tCoord_t k = 0; k < A->shape[a]; k++) {
 			ACoords[a] = k;
 			BCoords[b] = k;
-			accumulator += tensorGet(A, ACoords) * tensorGet(B, BCoords);
+			float val = tensorGet(A, ACoords) * tensorGet(B, BCoords);
+			if (val) {
+				statsGlobal.add++;
+				statsGlobal.mul++;
+				accumulator += val;
+			}
 		}
 		if (accumulator != 0) {
 			bool success = tensorSet(C, CCoords, accumulator);
@@ -156,6 +170,8 @@ Tensor * tensorContract(enum storageType type, Tensor * A, Tensor * B,
 		}
 
 		// get next coordinates or finish
+		statsGlobal.add++;
+		statsGlobal.cmp++;
 		CMode = 0;
 		tMode_t BMode;
 		for (tMode_t mode = 0; CMode < C->order; mode++) {

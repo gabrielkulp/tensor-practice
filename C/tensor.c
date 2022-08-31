@@ -114,7 +114,20 @@ float tensorGet(Tensor * T, tCoord_t * coords) {
 
 bool tensorPrintMetadata(Tensor * T) {
 	printf("Tensor:\n");
-	if (!T || !T->values) {
+	if (!T) {
+		printf("  <invalid>\n");
+		return false;
+	}
+	printf("  type: ");
+	switch (T->type) {
+		case probingHashtable:
+			puts("probing hash table");
+			break;
+		case BPlusTree:
+			puts("B+ tree");
+			break;
+	}
+	if (!T->values) {
 		printf("  <invalid>\n");
 		return false;
 	}

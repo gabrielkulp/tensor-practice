@@ -3,7 +3,7 @@
 
 #define HT_KEYGEN_FIELD_SIZE 16 // up to order-4 without conflict
 //#define HT_KEYGEN_FIELD_SIZE 8 // up to order-8, but each mode has max len 256
-#define HT_TENSOR_READ_OVERPROVISION_FACTOR 1.5 // = capacity / nnz on file load
+#define HT_TENSOR_READ_OVERPROVISION_FACTOR 1.2 // = capacity / nnz on file load
 
 void * htNew(size_t capacity);
 void htFree(Tensor * T);

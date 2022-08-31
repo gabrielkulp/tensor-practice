@@ -1,4 +1,5 @@
 #include "bpTree.h"
+#include "stats.h"
 #include "tensor.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -45,6 +46,7 @@ static void _printKey(Tensor * T, tKey_t key) {
 void * bptNew(size_t capacity) {
 	bptNode * root = calloc(sizeof(bptNode), 1);
 	root->isLeaf = true;
+	statsGlobal.mem++;
 	return root;
 }
 
@@ -52,6 +54,7 @@ void * bptNew(size_t capacity) {
 void _freeNode(bptNode * n) {
 	if (!n)
 		return;
+	statsGlobal.mem++;
 	if (!n->isLeaf)
 		for (size_t i = 0; i < BPT_ORDER; i++)
 			_freeNode(n->children[i]);
@@ -74,6 +77,11 @@ bptNode * _splitLeaf(bptNode * node, tKey_t key, float value, size_t idx) {
 	newNode->childCount = half;
 	newNode->isLeaf = true;
 	node->childCount = half;
+
+	statsGlobal.mem += 3; // read old node, write both new ones
+	statsGlobal.add += 1; // child count increment
+	statsGlobal.cmp += 1; // index comparison
+
 	// behavior depends on if insertion point is in old or new node
 	if (idx < half) {
 		// insertion point in old node
@@ -132,6 +140,11 @@ bptNode * _splitInternal(bptNode * node, bptNode * newChild, size_t idx) {
 	bptNode * newNode = calloc(sizeof(bptNode), 1);
 	newNode->childCount = half;
 	node->childCount = half;
+
+	statsGlobal.mem += 3; // read old node, write two new ones
+	statsGlobal.add += 1; // child count increment
+	statsGlobal.cmp += 1; // index comparison
+
 	// behavior depends on if insertion point is in old or new node
 	if (idx < half) {
 		// insertion point in old node
@@ -189,12 +202,16 @@ bptNode * _splitInternal(bptNode * node, bptNode * newChild, size_t idx) {
 bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 	if (!node)
 		return NULL;
+	statsGlobal.mem += 2; // get the node we'll interact with then store it
 	if (node->isLeaf) {
 		// todo: binary search
 		size_t insertIdx = node->childCount;
 		for (size_t i = 0; i < node->childCount; i++) {
+			statsGlobal.cmp++; // key check
 			if (key == node->keys[i]) {
 				// update existing value instead of inserting
+				statsGlobal.mem++; // save new value
+
 				node->values[i] = value;
 				return NULL;
 			}
@@ -203,6 +220,8 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 				break;
 			}
 		}
+
+		statsGlobal.cmp++; // count check
 		if (node->childCount == BPT_ORDER)
 			return _splitLeaf(node, key, value, insertIdx);
 
@@ -230,11 +249,9 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 			if (key <= node->keys[insertIdx + 1])
 				break;
 		bptNode * newChild = _insert(T, node->children[insertIdx], key, value);
-		/*		if (!newChild && !insertIdx)
-		            node->keys[insertIdx] =
-		                ((bptNode *)node->children[insertIdx])->keys[0];
-		*/
+
 		if (!newChild) {
+			statsGlobal.cmp++;
 			if (!insertIdx) {
 				bptNode * firstChild = node->children[0];
 				node->keys[0] = firstChild->keys[0];
@@ -242,17 +259,20 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 			return NULL;
 		}
 
+		statsGlobal.mem++; // look at first child
 		tKey_t newInterval = newChild->keys[0];
 
 		// adjust shift point depending on new sort order
 		bptNode * oldFirstChild = node->children[insertIdx];
 		tKey_t oldInterval = oldFirstChild->keys[0];
 
+		statsGlobal.cmp++; // interval check
 		bool swap = (newInterval > oldInterval);
 		if (swap)
 			insertIdx++;
 
 		// if too many children then we need to split and tell our parent
+		statsGlobal.cmp++; // child count check
 		if (node->childCount == BPT_ORDER)
 			return _splitInternal(node, newChild, insertIdx);
 
@@ -272,6 +292,8 @@ bptNode * _insert(Tensor * T, bptNode * node, tKey_t key, float value) {
 		node->children[insertIdx] = newChild;
 		node->keys[insertIdx] = newChild->keys[0];
 		node->childCount++;
+		statsGlobal.add++; // increment child count
+		statsGlobal.mem++; // store new child
 
 		return NULL; // no new siblings for parent to be aware of
 	}
@@ -289,13 +311,20 @@ bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 	while ('\n' != getchar())
 	    ;
 	*/
+
+	statsGlobal.mem++; // get root node
 	bptNode * root = T->values;
 	tKey_t key = _Coords2Key(T, coords);
 	bptNode * rootSibling = _insert(T, root, key, value);
 
+	bool store_new_root = false;
+
 	// todo: is this actually needed?
-	if (key < root->keys[0])
+	statsGlobal.cmp++;
+	if (key < root->keys[0]) {
+		store_new_root = true;
 		root->keys[0] = key;
+	}
 
 	if (rootSibling) {
 		// root node split during insertion, so integrate new node
@@ -307,9 +336,12 @@ bool bptSet(Tensor * T, tCoord_t * coords, float value) {
 		newRoot->keys[0] = root->keys[0];
 		newRoot->keys[1] = rootSibling->keys[0];
 		T->values = newRoot;
+		store_new_root = true;
 	}
 	// bptPrintAll(T);
-	return true; // insertion success
+	if (store_new_root)
+		statsGlobal.mem++; // something needed to be updated
+	return true;            // insertion success
 };
 
 // todo: remove tensor argument since it's only for passing to debug print
@@ -319,6 +351,7 @@ float _search(Tensor * T, bptNode * node, tKey_t key) {
 	if (node->isLeaf) {
 		// todo: make this a binary search
 		for (size_t i = 0; i < node->childCount; i++) {
+			statsGlobal.cmp++;
 			if (node->keys[i] == key)
 				return node->values[i];
 			if (node->keys[i] > key)
@@ -327,10 +360,15 @@ float _search(Tensor * T, bptNode * node, tKey_t key) {
 		return 0;
 	} else { // node is internal
 		// todo: make this a binary search
-		for (size_t i = 1; i < node->childCount; i++)
-			if (key < node->keys[i])
+		for (size_t i = 1; i < node->childCount; i++) {
+			statsGlobal.cmp++;
+			if (key < node->keys[i]) {
+				statsGlobal.mem++; // fetch child
 				return _search(T, node->children[i - 1], key);
+			}
+		}
 		//  if it's not in the other children, it might be in the last one
+		statsGlobal.mem++; // fetch child
 		return _search(T, node->children[node->childCount - 1], key);
 	}
 }
@@ -338,6 +376,7 @@ float bptGet(Tensor * T, tCoord_t * coords) {
 	if (!T || !T->values || !coords)
 		return 0;
 
+	statsGlobal.mem++; // get root
 	bptNode * root = T->values;
 	tKey_t key = _Coords2Key(T, coords);
 	return _search(T, root, key);
@@ -389,6 +428,10 @@ void bptPrintAll(Tensor * T) {
 	putchar('\n');
 }
 
+// todo: consider making the iterator stack a flat array
+// instead of a linked list. Decreases pointer chasing.
+// How to tell appropriate length of list??
+// There's no way to see the maximum tree depth right now.
 typedef struct bptIterRecord {
 	size_t childIdx;
 	struct bptIterRecord * parent; // this linked list is a stack
@@ -421,12 +464,14 @@ void * bptIteratorInit(Tensor * T) {
 	ctx->stack->node = T->values;
 	// traverse to the first leaf node
 	bptIterRecord * top = ctx->stack;
+	statsGlobal.mem++; // fetch root
 	while (!top->node->isLeaf) {
 		bptIterRecord * newTop = calloc(sizeof(bptIterRecord), 1);
 		if (!newTop) {
 			bptIteratorCleanup(ctx);
 			return NULL;
 		}
+		statsGlobal.mem++; // fetch next node
 		newTop->node = top->node->children[0];
 		newTop->parent = top;
 		top = newTop;
@@ -456,17 +501,20 @@ tensorEntry bptIteratorNext(Tensor * T, void * context) {
 	bptContext * ctx = context;
 	bptIterRecord * top = ctx->stack;
 	// have we run out of values in this node yet?
+	statsGlobal.cmp++;
 	if (top->childIdx < top->node->childCount) {
 		// more values here, so just increment and return
 
 		// once we hit a leaf, return it
 		_Key2Coords(T, ctx->coords, top->node->keys[top->childIdx]);
 		float val = top->node->values[top->childIdx];
+		statsGlobal.add++;
 		top->childIdx++;
 		return (tensorEntry){.coords = ctx->coords, .value = val};
 	}
 
 	// pop and free as needed until we can increment childIdx
+	statsGlobal.cmp++;
 	while (top->childIdx == top->node->childCount - (!top->node->isLeaf)) {
 		// are we done iterating?
 		if (!top->parent)
@@ -475,14 +523,17 @@ tensorEntry bptIteratorNext(Tensor * T, void * context) {
 		top = top->parent;
 		free(ctx->stack);
 		ctx->stack = top;
+		statsGlobal.cmp++; // while condition
 	}
 
 	// increment childIdx
+	statsGlobal.add++;
 	top->childIdx++;
 
 	// traverse to the next leaf
 	while (!top->node->isLeaf) {
 		bptIterRecord * newTop = calloc(sizeof(bptIterRecord), 1);
+		statsGlobal.mem++; // fetch child
 		newTop->node = top->node->children[top->childIdx];
 		newTop->parent = top;
 		top = newTop;

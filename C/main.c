@@ -1,17 +1,22 @@
 #include "bpTree.h"
 #include "hashtable.h"
+#include "stats.h"
 #include "tensor.h"
 #include "tensorMath.h"
 #include <stdio.h>
 
 int main(int argc, char ** argv) {
+	statsReset();
 	printf("Input tensor A:\n");
 	Tensor * A = tensorRead(probingHashtable, "../B.coo");
-	// tensorPrint(A);
+	tensorPrintMetadata(A);
+	statsPrint(statsGet());
+
+	statsReset();
 	printf("\nInput tensor B:\n");
 	Tensor * B = tensorRead(BPlusTree, "../B.coo");
-	// tensorPrint(B);
-	putchar('\n');
+	tensorPrintMetadata(B);
+	statsPrint(statsGet());
 
 	if (!A || !B) {
 		printf("Error. Exiting.\n");
@@ -19,7 +24,12 @@ int main(int argc, char ** argv) {
 		tensorFree(B);
 		return 1;
 	}
-	// Tensor * C = {0};
+	Tensor * C = {0};
+
+	putchar('\n');
+	for (int i = 0; i < 80; i++)
+		putchar('-');
+	putchar('\n');
 
 	tensorIterator iter = htIterator;
 	void * context = iter.init(A);
@@ -36,29 +46,44 @@ int main(int argc, char ** argv) {
 		item = iter.next(A, context);
 	}
 	iter.cleanup(context);
-	/*
-	    printf("\nTrace with 0, 1 is\n");
-	    C = tensorTrace(BPlusTree, A, 0, 1);
-	    tensorPrint(C);
-	    tensorFree(C);
+	
+	printf("\nTrace A with 0, 1 is\n");
+	statsReset();
+	C = tensorTrace(probingHashtable, A, 0, 1);
+	tensorPrintMetadata(C);
+	statsPrint(statsGet());
+	tensorFree(C);
 
-	    printf("\nTrace with 0, 2 is\n");
-	    C = tensorTrace(BPlusTree, A, 0, 2);
-	    tensorPrint(C);
-	    tensorFree(C);
+	printf("\nTrace B with 0, 1 is\n");
+	statsReset();
+	C = tensorTrace(BPlusTree, B, 0, 1);
+	tensorPrintMetadata(C);
+	statsPrint(statsGet());
+	tensorFree(C);
 
-	    printf("\nTrace with 1, 2 is\n");
-	    C = tensorTrace(BPlusTree, A, 1, 2);
-	    tensorPrint(C);
-	    tensorFree(C);
+	putchar('\n');
+	for (int i = 0; i < 80; i++)
+		putchar('-');
+	putchar('\n');
 
-	    printf("\nContraction on 0, 1 is\n");
-	    C = tensorContract(BPlusTree, A, B, 0, 1);
-	    tensorPrint(C);
-	    tensorWrite(C, "C.coo");
-	*/
+	printf("\nContraction on 0, 1 is\n");
+	statsReset();
+	C = tensorContract(probingHashtable, A, B, 0, 1);
+	tensorPrintMetadata(C);
+	statsPrint(statsGet());
+	tensorFree(C);
+
+	printf("\nContraction on 0, 1 is\n");
+	statsReset();
+	C = tensorContract(BPlusTree, A, B, 0, 1);
+	tensorPrintMetadata(C);
+	statsPrint(statsGet());
+	tensorFree(C);
+
+	//tensorWrite(C, "C.coo");
+	
 	tensorFree(A);
 	tensorFree(B);
-	//	tensorFree(C);
+	// tensorFree(C);
 	return 0;
 }
