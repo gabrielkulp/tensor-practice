@@ -26,22 +26,24 @@ int main(int argc, char ** argv) {
 	}
 	Tensor * C = {0};
 
+	/*
 	tensorIterator iter = htIterator;
 	void * context = iter.init(B);
 	tensorEntry item = iter.next(B, context);
 	float val1, val2;
 	while (item.coords != 0) {
-		val1 = item.value;
-		val2 = tensorGet(A, item.coords);
-		if (val1 != val2) {
-			putchar('B');
-			coordsPrint(B, item.coords);
-			printf(" = %f, and A[\"] = %f\n", val1, val2);
-		}
-		item = iter.next(B, context);
+	    val1 = item.value;
+	    val2 = tensorGet(A, item.coords);
+	    if (val1 != val2) {
+	        putchar('B');
+	        coordsPrint(B, item.coords);
+	        printf(" = %f, and A[\"] = %f\n", val1, val2);
+	    }
+	    item = iter.next(B, context);
 	}
 	iter.cleanup(context);
-	
+	*/
+
 	putchar('\n');
 	for (int i = 0; i < 80; i++)
 		putchar('-');
@@ -65,7 +67,7 @@ int main(int argc, char ** argv) {
 
 	putchar('\n');
 	for (int i = 0; i < 80; i++)
-		putchar('-');
+	    putchar('-');
 	putchar('\n');
 	*/
 
@@ -76,7 +78,6 @@ int main(int argc, char ** argv) {
 	Stats bptStats = statsGet();
 	size_t bptSize = tensorSize(C);
 	statsPrint(bptStats);
-	tensorWrite(C, "ht.coo");
 	ht_capacity = C->entryCount;
 	tensorFree(C);
 
@@ -87,7 +88,6 @@ int main(int argc, char ** argv) {
 	Stats htStats = statsGet();
 	size_t htSize = tensorSize(C);
 	statsPrint(htStats);
-	tensorWrite(C, "bpt.coo");
 	tensorFree(C);
 
 	putchar('\n');
@@ -97,15 +97,17 @@ int main(int argc, char ** argv) {
 
 	puts("Configuration summary:");
 	printf("  B+ tree branching factor: %i\n", BPT_ORDER);
-	printf("  Hash table overprovision factor: %0.2f\n",
-	    HT_TENSOR_READ_OVERPROVISION_FACTOR);
+	printf("  Hash table overprovision factor: %0.2f\n", HT_OVERPROVISION);
 	printf("  Input tensor size: %lu nnz\n", A->entryCount);
 	printf("  Output tensor size: %lu nnz\n\n", ht_capacity);
 
 	puts("B+ Tree performance compared to hash table:");
-	printf("  RAM transactions: %0.2f%%\n", (float)100*bptStats.mem/htStats.mem);
-	printf("  ALU operations:   %0.2f%%\n", (float)100*(bptStats.add+bptStats.cmp+bptStats.mul)/(htStats.add+htStats.cmp+htStats.mul));
-	printf("  Data structure:   %0.2f%%\n", (float)100*bptSize/htSize);
+	printf("  RAM transactions: %0.2f%%\n",
+	       (float)100 * bptStats.mem / htStats.mem);
+	printf("  ALU operations:   %0.2f%%\n",
+	       (float)100 * (bptStats.add + bptStats.cmp + bptStats.mul) /
+	           (htStats.add + htStats.cmp + htStats.mul));
+	printf("  Data structure:   %0.2f%%\n", (float)100 * bptSize / htSize);
 
 	tensorFree(A);
 	tensorFree(B);

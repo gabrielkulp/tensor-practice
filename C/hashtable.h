@@ -2,9 +2,12 @@
 #include "tensor.h"
 #include <stddef.h>
 
+#ifndef HT_OVERPROVISION
+#define HT_OVERPROVISION 1.5 // = capacity / nnz on file load
+#endif
+
 #define HT_KEYGEN_FIELD_SIZE 16 // up to order-4 without conflict
 //#define HT_KEYGEN_FIELD_SIZE 8 // up to order-8, but each mode has max len 256
-#define HT_TENSOR_READ_OVERPROVISION_FACTOR 1.5 // = capacity / nnz on file load
 
 extern size_t ht_capacity;
 // ht_capacity is only accessed in htNew

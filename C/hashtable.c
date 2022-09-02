@@ -10,7 +10,7 @@ typedef struct htEntry {
 	htKey_t key;
 	float value;
 } htEntry;
-const size_t _hteSize = sizeof(float)+sizeof(htKey_t);
+const size_t _hteSize = sizeof(float) + sizeof(htKey_t);
 
 typedef struct Hashtable {
 	size_t capacity;
@@ -41,7 +41,7 @@ void * htNew() {
 	if (!ht)
 		return 0;
 
-	size_t capacity = ht_capacity * HT_TENSOR_READ_OVERPROVISION_FACTOR;
+	size_t capacity = ht_capacity * HT_OVERPROVISION;
 	ht->table = calloc(capacity, sizeof(htEntry));
 	ht->capacity = ht->table ? capacity : 0;
 	return ht;
