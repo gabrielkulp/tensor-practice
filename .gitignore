@@ -5,3 +5,5 @@
 Python/data/
 *.coo
 *.pyobj
+__pycache__
+*.pt
